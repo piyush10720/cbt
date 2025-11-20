@@ -11,6 +11,7 @@ import { AlertCircle, AlertTriangle, ArrowLeft, Award, BarChart3, CheckCircle2, 
 import toast from 'react-hot-toast'
 import { getOptionLabel, getOptionText, hasOptionDiagram, getOptionDiagramUrl } from '@/utils/questionHelpers'
 import ImageModal from '@/components/ImageModal'
+import MathText from '@/components/MathText'
 
 type ResultDetailsResponse = {
   result: {
@@ -443,9 +444,12 @@ const ResultDetailsPage: React.FC = () => {
                 <div className="flex items-start justify-between gap-3">
                   <div className="space-y-1 flex-1">
                     <p className="text-sm font-semibold text-gray-800">Question {index + 1}</p>
-                    <p className="text-sm text-gray-700 whitespace-pre-line">
-                      {answer.questionText || question?.text || 'Question text unavailable'}
-                    </p>
+                    <div className="text-sm text-gray-700">
+                      <MathText 
+                        text={answer.questionText || question?.text || 'Question text unavailable'} 
+                        block 
+                      />
+                    </div>
                     {question?.diagram?.present && question?.diagram?.url && (
                       <div className="mt-2">
                         <img 
@@ -543,7 +547,7 @@ const ResultDetailsPage: React.FC = () => {
                             >
                               <span className="font-medium min-w-[20px]">{optionLabel}.</span>
                               <div className="flex-1">
-                                <span className="text-gray-700">{optionText}</span>
+                                <MathText text={optionText} className="text-gray-700" />
                                 {hasDiagram && diagramUrl && (
                                   <img 
                                     src={diagramUrl} 

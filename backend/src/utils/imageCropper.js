@@ -30,6 +30,40 @@ try {
 }
 
 /**
+ * Custom Canvas Factory for pdfjs-dist with @napi-rs/canvas
+ * Prevents cleanup errors by providing safe destroy methods
+ */
+class NodeCanvasFactory {
+  create(width, height) {
+    const { createCanvas } = require('@napi-rs/canvas');
+    const canvas = createCanvas(width, height)
+    return {
+      canvas,
+      context: canvas.getContext('2d')
+    }
+  }
+
+  reset(canvasAndContext, width, height) {
+    canvasAndContext.canvas.width = width
+    canvasAndContext.canvas.height = height
+  }
+
+  destroy(canvasAndContext) {
+    // Safe cleanup - do nothing to avoid napi-rs/canvas errors
+    // The canvas will be garbage collected naturally
+    // Just nullify references to help GC
+    try {
+      if (canvasAndContext) {
+        canvasAndContext.canvas = null
+        canvasAndContext.context = null
+      }
+    } catch (e) {
+      // Silently ignore any cleanup errors
+    }
+  }
+}
+
+/**
  * Image Cropper Utility
  * Provides functions to convert PDF pages to images and crop based on bounding boxes
  * Uses sharp as primary library with Jimp as fallback
@@ -50,11 +84,12 @@ class ImageCropper {
       const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
       const { createCanvas } = require('@napi-rs/canvas');
       
-      // Load PDF
+      // Load PDF with custom canvas factory
       const loadingTask = pdfjsLib.getDocument({
         data: new Uint8Array(pdfBuffer),
         useSystemFonts: true,
-        disableFontFace: false
+        disableFontFace: false,
+        canvasFactory: new NodeCanvasFactory()
       });
       
       const pdfDocument = await loadingTask.promise;
@@ -76,6 +111,14 @@ class ImageCropper {
       
       // Convert canvas to buffer
       const buffer = canvas.toBuffer('image/png');
+      
+      // Safe cleanup
+      try {
+        page.cleanup();
+      } catch (e) {
+        // Ignore cleanup errors
+      }
+      
       return buffer;
     } catch (error) {
       console.error(`   ⚠️ pdfjs fallback failed:`, error.message);

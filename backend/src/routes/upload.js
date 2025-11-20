@@ -5,6 +5,14 @@ const fs = require('fs').promises;
 const pdfParse = require('pdf-parse');
 const { authenticate } = require('../middleware/auth');
 const geminiParser = require('../services/geminiParser');
+const cloudinary = require('cloudinary').v2;
+
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
 
 const router = express.Router();
 
@@ -40,6 +48,31 @@ const upload = multer({
     fileSize: 10 * 1024 * 1024 // 10MB limit
   }
 });
+
+// Helper function to upload PDF to Cloudinary
+const uploadPdfToCloudinary = async (filePath, originalName) => {
+  try {
+    const result = await cloudinary.uploader.upload(filePath, {
+      folder: 'exam-pdfs',
+      resource_type: 'raw',
+      public_id: `${Date.now()}-${originalName.replace(/\.pdf$/i, '')}`,
+      overwrite: false,
+      access_mode: 'public', // Ensure public access
+      type: 'upload'
+    });
+    
+    // Return URL with CORS-friendly transformation
+    // For raw PDFs, we need to ensure the URL allows cross-origin access
+    const url = result.secure_url || result.url;
+    
+    // Add flags for public access if needed
+    // Cloudinary raw files are accessible by default with secure_url
+    return url;
+  } catch (error) {
+    console.error('Cloudinary upload error:', error);
+    throw new Error('Failed to upload PDF to cloud storage');
+  }
+};
 
 // All routes require authentication
 router.use(authenticate);
@@ -206,6 +239,13 @@ router.post('/complete-exam', upload.fields([
       });
     }
 
+    // Upload PDFs to Cloudinary
+    const questionPaperUrl = await uploadPdfToCloudinary(questionPaperFile.path, questionPaperFile.originalname);
+    let answerKeyUrl = null;
+    if (answerKeyFile) {
+      answerKeyUrl = await uploadPdfToCloudinary(answerKeyFile.path, answerKeyFile.originalname);
+    }
+
     // Read PDF files as buffers
     const questionPaperBuffer = await fs.readFile(questionPaperFile.path);
     const answerKeyBuffer = answerKeyFile ? await fs.readFile(answerKeyFile.path) : null;
@@ -229,7 +269,11 @@ router.post('/complete-exam', upload.fields([
       data: {
         questions: parserResponse.questions,
         totalQuestions: parserResponse.totalQuestions,
-        metadata: parserResponse.metadata
+        metadata: parserResponse.metadata,
+        pdfUrls: {
+          questionPaper: questionPaperUrl,
+          answerKey: answerKeyUrl
+        }
       }
     });
 

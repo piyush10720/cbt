@@ -5,7 +5,7 @@ const answerSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Question',
     required: true
-  },
+  }, 
   userAnswer: mongoose.Schema.Types.Mixed, // Can be string, array, or number
   isCorrect: {
     type: Boolean,

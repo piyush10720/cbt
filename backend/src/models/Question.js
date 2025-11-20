@@ -43,8 +43,10 @@ const questionSchema = new mongoose.Schema({
     trim: true
   },
   options: [{
-    type: String,
-    trim: true
+    type: mongoose.Schema.Types.Mixed, // Support both String and Object with diagram
+    trim: function() {
+      return typeof this === 'string';
+    }
   }],
   correct: [{
     type: String,
@@ -76,10 +78,33 @@ const questionSchema = new mongoose.Schema({
   subject: String,
   topic: String,
   explanation: String,
-  imageUrl: String,
+  imageUrl: String, // Legacy field for backward compatibility
+  diagram: {
+    present: {
+      type: Boolean,
+      default: false
+    },
+    page: Number,
+    page_width: Number,
+    page_height: Number,
+    bounding_box: {
+      x: Number,
+      y: Number,
+      width: Number,
+      height: Number
+    },
+    description: String,
+    url: String,
+    uploaded_at: Date,
+    upload_error: String
+  },
   order: {
     type: Number,
     default: 0
+  },
+  sourcePageNumber: {
+    type: Number,
+    min: 1
   }
 }, {
   timestamps: true

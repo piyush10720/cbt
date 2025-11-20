@@ -19,4 +19,16 @@ export default defineConfig({
       },
     },
   },
+  optimizeDeps: {
+    include: ['pdfjs-dist'],
+    esbuildOptions: {
+      target: 'esnext'
+    }
+  },
+  build: {
+    commonjsOptions: {
+      include: [/pdfjs-dist/, /node_modules/],
+      transformMixedEsModules: true
+    }
+  }
 })

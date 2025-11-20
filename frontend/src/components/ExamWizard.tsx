@@ -32,6 +32,7 @@ const ExamWizard: React.FC<ExamWizardProps> = ({
 }) => {
   const [currentStep, setCurrentStep] = useState(mode === 'edit' ? 1 : 0)
   const [questions, setQuestions] = useState<Question[]>(initialQuestions ?? [])
+  const [pdfUrl, setPdfUrl] = useState<string>('')
   const [examSettings, setExamSettings] = useState(
     initialExamSettings ?? {
       title: '',
@@ -97,11 +98,48 @@ const ExamWizard: React.FC<ExamWizardProps> = ({
   ]
 
   const handleQuestionsUpdate = (newQuestions: Question[]) => {
-    setQuestions(newQuestions)
+    console.log('Exam Wizard - Received questions:', newQuestions.length)
+    
+    // Normalize questions to ensure numeric and descriptive types have correct array initialized
+    const normalizedQuestions = newQuestions.map((q, idx) => {
+      const normalized = { ...q }
+      
+      // Fix numeric and descriptive correct arrays
+      if ((q.type === 'numeric' || q.type === 'descriptive') && (!q.correct || q.correct.length === 0)) {
+        normalized.correct = ['']
+      }
+      
+      // Transform legacy imageUrl to diagram structure for backward compatibility
+      if ((q as any).imageUrl && !q.diagram) {
+        normalized.diagram = {
+          present: true,
+          url: (q as any).imageUrl,
+          description: 'Question diagram'
+        }
+      }
+      
+      // Debug diagram data for questions with diagrams
+      if (q.diagram?.present) {
+        console.log(`Question ${idx + 1} has diagram:`, {
+          present: q.diagram.present,
+          url: q.diagram.url,
+          urlLength: q.diagram.url?.length,
+          description: q.diagram.description
+        })
+      }
+      
+      return normalized
+    })
+    
+    setQuestions(normalizedQuestions)
   }
 
   const handleSettingsUpdate = (newSettings: any) => {
     setExamSettings(newSettings)
+  }
+
+  const handlePdfUrlUpdate = (url: string) => {
+    setPdfUrl(url)
   }
 
   const handleNext = () => {
@@ -243,10 +281,12 @@ const ExamWizard: React.FC<ExamWizardProps> = ({
           <CurrentStepComponent
             questions={questions}
             onQuestionsUpdate={handleQuestionsUpdate}
+            onPdfUrlUpdate={handlePdfUrlUpdate}
             examSettings={examSettings}
             onSettingsUpdate={handleSettingsUpdate}
             mode={mode}
             hideUpload={mode === 'edit'}
+            pdfUrl={pdfUrl}
           />
         </CardContent>
       </Card>

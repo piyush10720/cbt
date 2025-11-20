@@ -11,6 +11,7 @@ const resultRoutes = require('./routes/result');
 const uploadRoutes = require('./routes/upload');
 const debugRoutes = require('./routes/debug');
 const bookmarkRoutes = require('./routes/bookmarks');
+const pdfProxyRoutes = require('./routes/pdf-proxy');
 
 const app = express();
 
@@ -71,6 +72,7 @@ app.use('/api/exam', examRoutes);
 app.use('/api/result', resultRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/debug', debugRoutes);
+app.use('/api/proxy', pdfProxyRoutes);
 app.use('/api/bookmarks', bookmarkRoutes);
 
 // Health check endpoint

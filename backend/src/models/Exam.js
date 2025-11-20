@@ -157,11 +157,13 @@ const examSchema = new mongoose.Schema({
     questionPaper: {
       filename: String,
       path: String,
+      url: String,
       uploadedAt: Date
     },
     answerKey: {
       filename: String,
       path: String,
+      url: String,
       uploadedAt: Date
     }
   },

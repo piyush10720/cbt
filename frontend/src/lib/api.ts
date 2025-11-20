@@ -100,6 +100,7 @@ export interface Question {
   explanation?: string
   order?: number
   diagram?: QuestionDiagram
+  sourcePageNumber?: number
 }
 
 export interface Explanation {
@@ -338,7 +339,16 @@ export const uploadAPI = {
     questionPaper: File,
     answerKey?: File
   ): Promise<AxiosResponse<{
-    data: { questions: Question[]; totalQuestions: number; extractedText: any; metadata: any }
+    data: { 
+      questions: Question[]; 
+      totalQuestions: number; 
+      extractedText: any; 
+      metadata: any;
+      pdfUrls?: {
+        questionPaper: string;
+        answerKey?: string;
+      }
+    }
     message: string
   }>> => {
     const formData = new FormData()

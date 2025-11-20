@@ -12,6 +12,7 @@ import toast from 'react-hot-toast'
 import { getOptionLabel, getOptionText, hasOptionDiagram, getOptionDiagramUrl } from '@/utils/questionHelpers'
 import ImageModal from '@/components/ImageModal'
 import ScientificCalculator from '@/components/ScientificCalculator'
+import MathText from '@/components/MathText'
 
 type StartExamResponse = {
   message: string
@@ -366,7 +367,7 @@ const TakeExamPage: React.FC = () => {
                     className="h-4 w-4 mt-1"
                   />
                   <div className="flex-1">
-                    <span className="text-sm text-gray-700">{optionText}</span>
+                    <MathText text={optionText} className="text-sm text-gray-700" />
                     {hasDiagram && diagramUrl && (
                       <img 
                         src={diagramUrl} 
@@ -418,7 +419,7 @@ const TakeExamPage: React.FC = () => {
                     className="h-4 w-4 mt-1"
                   />
                   <div className="flex-1">
-                    <span className="text-sm text-gray-700">{optionText}</span>
+                    <MathText text={optionText} className="text-sm text-gray-700" />
                     {hasDiagram && diagramUrl && (
                       <img 
                         src={diagramUrl} 
@@ -538,7 +539,9 @@ const TakeExamPage: React.FC = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="text-gray-800 leading-relaxed whitespace-pre-line">{currentQuestion?.text}</div>
+              <div className="text-gray-800 leading-relaxed">
+                <MathText text={currentQuestion?.text || ''} block />
+              </div>
               {currentQuestion?.diagram?.present && currentQuestion?.diagram?.url && (
                 <div className="my-4">
                   <img 

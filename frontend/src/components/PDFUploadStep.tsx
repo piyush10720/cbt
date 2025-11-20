@@ -3,13 +3,11 @@ import { useMutation } from 'react-query'
 import { uploadAPI, Question } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import {
   Upload,
   FileText,
   CheckCircle,
-  AlertCircle,
   X,
   Plus
 } from 'lucide-react'
@@ -18,15 +16,16 @@ import toast from 'react-hot-toast'
 interface PDFUploadStepProps {
   questions: Question[]
   onQuestionsUpdate: (questions: Question[]) => void
+  onPdfUrlUpdate?: (pdfUrl: string) => void
   hideUpload?: boolean
 }
 
 const PDFUploadStep: React.FC<PDFUploadStepProps> = ({
   questions,
   onQuestionsUpdate,
+  onPdfUrlUpdate,
   hideUpload = false
 }) => {
-  const [uploadMethod, setUploadMethod] = useState<'complete' | 'separate'>('complete')
   const [files, setFiles] = useState<{
     questionPaper?: File
     answerKey?: File
@@ -38,38 +37,20 @@ const PDFUploadStep: React.FC<PDFUploadStepProps> = ({
     ({ questionPaper, answerKey }: { questionPaper: File; answerKey?: File }) =>
       uploadAPI.uploadCompleteExam(questionPaper, answerKey),
     {
-      onSuccess: (response) => {
+      onSuccess: (response: any) => {
         onQuestionsUpdate(response.data.data.questions)
+        if (response.data.data.pdfUrls?.questionPaper && onPdfUrlUpdate) {
+          const cloudinaryUrl = response.data.data.pdfUrls.questionPaper
+          console.log('Received Cloudinary PDF URL:', cloudinaryUrl)
+          
+          // Try direct Cloudinary URL first - they support CORS for raw files
+          // Only use proxy if direct access fails
+          onPdfUrlUpdate(cloudinaryUrl)
+        }
         toast.success(`Successfully parsed ${response.data.data.totalQuestions} questions!`)
       },
       onError: (error: any) => {
         const message = error.response?.data?.message || 'Failed to parse PDF files'
-        toast.error(message)
-      }
-    }
-  )
-
-  const uploadQuestionPaperMutation = useMutation(uploadAPI.uploadQuestionPaper, {
-    onSuccess: (response) => {
-      onQuestionsUpdate(response.data.data.questions)
-      toast.success(`Successfully parsed ${response.data.data.totalQuestions} questions!`)
-    },
-    onError: (error: any) => {
-      const message = error.response?.data?.message || 'Failed to parse question paper'
-      toast.error(message)
-    }
-  })
-
-  const uploadAnswerKeyMutation = useMutation(
-    ({ file, existingQuestions }: { file: File; existingQuestions: Question[] }) =>
-      uploadAPI.uploadAnswerKey(file, existingQuestions),
-    {
-      onSuccess: (response) => {
-        onQuestionsUpdate(response.data.data.questions)
-        toast.success(`Successfully aligned ${response.data.data.alignedCount} answers!`)
-      },
-      onError: (error: any) => {
-        const message = error.response?.data?.message || 'Failed to parse answer key'
         toast.error(message)
       }
     }
@@ -125,32 +106,6 @@ const PDFUploadStep: React.FC<PDFUploadStepProps> = ({
     })
   }
 
-  const handleUploadQuestionPaper = () => {
-    if (!files.questionPaper) {
-      toast.error('Please select a question paper')
-      return
-    }
-
-    uploadQuestionPaperMutation.mutate(files.questionPaper)
-  }
-
-  const handleUploadAnswerKey = () => {
-    if (!files.answerKey) {
-      toast.error('Please select an answer key')
-      return
-    }
-
-    if (questions.length === 0) {
-      toast.error('Please upload question paper first')
-      return
-    }
-
-    uploadAnswerKeyMutation.mutate({
-      file: files.answerKey,
-      existingQuestions: questions
-    })
-  }
-
   const addManualQuestion = () => {
     const newQuestion: Question = {
       id: `q${questions.length + 1}`,
@@ -164,46 +119,38 @@ const PDFUploadStep: React.FC<PDFUploadStepProps> = ({
     onQuestionsUpdate([...questions, newQuestion])
   }
 
-  const isLoading = uploadCompleteMutation.isLoading || 
-                   uploadQuestionPaperMutation.isLoading || 
-                   uploadAnswerKeyMutation.isLoading
+  const isLoading = uploadCompleteMutation.isLoading
 
   return (
     <div className="space-y-6">
       {!hideUpload && (
-        <Tabs value={uploadMethod} onValueChange={(value) => setUploadMethod(value as any)}>
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="complete">Upload Both Files</TabsTrigger>
-            <TabsTrigger value="separate">Upload Separately</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="complete" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Upload Question Paper & Answer Key</CardTitle>
-                <CardDescription>
-                  Upload both files together for automatic question parsing and answer alignment
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Question Paper Upload */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Question Paper (Required)
-                  </label>
-                  <div
-                    className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
-                      dragActive
-                        ? 'border-blue-500 bg-blue-50'
-                        : files.questionPaper
-                        ? 'border-green-500 bg-green-50'
-                        : 'border-gray-300 hover:border-gray-400'
-                    }`}
-                    onDragEnter={handleDrag}
-                    onDragLeave={handleDrag}
-                    onDragOver={handleDrag}
-                    onDrop={(e) => handleDrop(e, 'questionPaper')}
-                  >
+        <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Upload Question Paper & Answer Key</CardTitle>
+              <CardDescription>
+                Upload both files together for automatic question parsing and answer alignment
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Question Paper Upload */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Question Paper (Required)
+                </label>
+                <div
+                  className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                    dragActive
+                      ? 'border-blue-500 bg-blue-50'
+                      : files.questionPaper
+                      ? 'border-green-500 bg-green-50'
+                      : 'border-gray-300 hover:border-gray-400'
+                  }`}
+                  onDragEnter={handleDrag}
+                  onDragLeave={handleDrag}
+                  onDragOver={handleDrag}
+                  onDrop={(e) => handleDrop(e, 'questionPaper')}
+                >
                     {files.questionPaper ? (
                       <div className="flex items-center justify-center space-x-2">
                         <FileText className="w-8 h-8 text-green-600" />
@@ -300,165 +247,23 @@ const PDFUploadStep: React.FC<PDFUploadStepProps> = ({
                   </div>
                 </div>
 
-                <Button
-                  onClick={handleUploadComplete}
-                  disabled={!files.questionPaper || isLoading}
-                  className="w-full"
-                >
-                  {isLoading ? (
-                    <div className="flex items-center space-x-2">
-                      <LoadingSpinner size="sm" />
-                      <span>Processing PDFs...</span>
-                    </div>
-                  ) : (
-                    'Parse Questions'
-                  )}
-                </Button>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="separate" className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Question Paper Only */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Step 1: Question Paper</CardTitle>
-                  <CardDescription>
-                    Upload your question paper to extract questions
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div
-                    className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
-                      files.questionPaper
-                        ? 'border-green-500 bg-green-50'
-                        : 'border-gray-300 hover:border-gray-400'
-                    }`}
-                    onDragEnter={handleDrag}
-                    onDragLeave={handleDrag}
-                    onDragOver={handleDrag}
-                    onDrop={(e) => handleDrop(e, 'questionPaper')}
-                  >
-                    {files.questionPaper ? (
-                      <div className="space-y-2">
-                        <FileText className="w-8 h-8 text-green-600 mx-auto" />
-                        <p className="font-medium text-green-800">{files.questionPaper.name}</p>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeFile('questionPaper')}
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <div>
-                        <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                        <Button variant="outline" size="sm" asChild>
-                          <label>
-                            <input
-                              type="file"
-                              accept=".pdf"
-                              onChange={(e) => handleFileSelect(e, 'questionPaper')}
-                              className="hidden"
-                            />
-                            Select PDF
-                          </label>
-                        </Button>
-                      </div>
-                    )}
+              <Button
+                onClick={handleUploadComplete}
+                disabled={!files.questionPaper || isLoading}
+                className="w-full"
+              >
+                {isLoading ? (
+                  <div className="flex items-center space-x-2">
+                    <LoadingSpinner size="sm" />
+                    <span>Processing PDFs...</span>
                   </div>
-
-                  <Button
-                    onClick={handleUploadQuestionPaper}
-                    disabled={!files.questionPaper || isLoading}
-                    className="w-full"
-                    size="sm"
-                  >
-                    {uploadQuestionPaperMutation.isLoading ? (
-                      <LoadingSpinner size="sm" />
-                    ) : (
-                      'Parse Questions'
-                    )}
-                  </Button>
-                </CardContent>
-              </Card>
-
-              {/* Answer Key */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Step 2: Answer Key</CardTitle>
-                  <CardDescription>
-                    Upload answer key to align with questions
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div
-                    className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
-                      files.answerKey
-                        ? 'border-green-500 bg-green-50'
-                        : questions.length === 0
-                        ? 'border-gray-200 bg-gray-50'
-                        : 'border-gray-300 hover:border-gray-400'
-                    }`}
-                    onDragEnter={handleDrag}
-                    onDragLeave={handleDrag}
-                    onDragOver={handleDrag}
-                    onDrop={(e) => handleDrop(e, 'answerKey')}
-                  >
-                    {files.answerKey ? (
-                      <div className="space-y-2">
-                        <FileText className="w-8 h-8 text-green-600 mx-auto" />
-                        <p className="font-medium text-green-800">{files.answerKey.name}</p>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeFile('answerKey')}
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <div>
-                        <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          asChild
-                          disabled={questions.length === 0}
-                        >
-                          <label>
-                            <input
-                              type="file"
-                              accept=".pdf"
-                              onChange={(e) => handleFileSelect(e, 'answerKey')}
-                              className="hidden"
-                            />
-                            Select PDF
-                          </label>
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-
-                  <Button
-                    onClick={handleUploadAnswerKey}
-                    disabled={!files.answerKey || questions.length === 0 || isLoading}
-                    className="w-full"
-                    size="sm"
-                  >
-                    {uploadAnswerKeyMutation.isLoading ? (
-                      <LoadingSpinner size="sm" />
-                    ) : (
-                      'Align Answers'
-                    )}
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-        </Tabs>
+                ) : (
+                  'Parse Questions'
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* Manual Question Creation */}

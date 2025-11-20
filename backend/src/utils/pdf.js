@@ -73,12 +73,16 @@ class NodeCanvasFactory {
   }
 
   destroy(canvasAndContext) {
-    // Safe cleanup - just clear the canvas instead of setting width to 0
+    // Safe cleanup - do nothing to avoid napi-rs/canvas errors
+    // The canvas will be garbage collected naturally
+    // Just nullify references to help GC
     try {
-      canvasAndContext.canvas.width = 1
-      canvasAndContext.canvas.height = 1
+      if (canvasAndContext) {
+        canvasAndContext.canvas = null
+        canvasAndContext.context = null
+      }
     } catch (e) {
-      // Ignore cleanup errors
+      // Silently ignore any cleanup errors
     }
   }
 }

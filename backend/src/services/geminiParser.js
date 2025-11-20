@@ -73,7 +73,7 @@ class GeminiParser {
         console.log(`🧩 Processing chunk ${chunkIndex + 1}/${chunks.length} (pages ${chunk.startPage}-${chunk.endPage})`)
         console.log(`   📄 Sending to Gemini: ${Math.round(chunk.buffer.length / 1024)}KB (${chunk.endPage - chunk.startPage + 1} pages only)`)
         this.lastPdfBuffer = chunk.buffer
-        const responseText = await this.callGeminiAPIWithFiles(chunk.buffer, answerKeyBuffer)
+        const responseText = await this.callGeminiAPIWithFiles(chunk.buffer, answerKeyBuffer, chunk.startPage)
         const questions = await this.parseGeminiResponse(responseText, {
           pageOffset: chunk.startPage - 1,
           chunkPageRange: { start: chunk.startPage, end: chunk.endPage }
@@ -139,10 +139,42 @@ class GeminiParser {
         }
       }
 
+      // Transform questions to ensure proper diagram structure for options
+      const transformedQuestions = allQuestions.map(q => {
+        // Transform options array to include diagram data if optionImages exist
+        if (q.optionImages && Object.keys(q.optionImages).length > 0) {
+          q.options = q.options.map(opt => {
+            const optionLabel = typeof opt === 'string' ? opt : opt.label
+            const optionText = typeof opt === 'string' ? opt : opt.text
+            
+            if (q.optionImages[optionLabel]) {
+              return {
+                label: optionLabel,
+                text: optionText,
+                diagram: {
+                  present: true,
+                  url: q.optionImages[optionLabel],
+                  description: `Option ${optionLabel} diagram`,
+                  uploaded_at: new Date().toISOString()
+                }
+              }
+            }
+            
+            // Return as object format for consistency
+            return typeof opt === 'string' ? { label: opt, text: opt } : opt
+          })
+          
+          // Clean up temporary optionImages field
+          delete q.optionImages
+        }
+        
+        return q
+      })
+
       return {
         success: true,
-        questions: allQuestions,
-        totalQuestions: allQuestions.length,
+        questions: transformedQuestions,
+        totalQuestions: transformedQuestions.length,
         metadata: {
           parsedAt: new Date().toISOString(),
           hasAnswerKey: !!answerKeyBuffer,
@@ -176,14 +208,19 @@ class GeminiParser {
    * @param {number} [retryCount=0]
    * @returns {Promise<string>} - A promise that resolves to the raw text content from the Gemini response.
    */
-  async callGeminiAPIWithFiles(questionPaperBuffer, answerKeyBuffer = null, retryCount = 0) {
+  async callGeminiAPIWithFiles(questionPaperBuffer, answerKeyBuffer = null, startPage = 1, retryCount = 0) {
     try {
+      const pageOffsetNote = startPage > 1 
+        ? `\n\nIMPORTANT: This PDF chunk starts at page ${startPage} of the original document. When identifying page numbers, add ${startPage - 1} to the local page number. For example, if a question is on page 1 of this chunk, set pageNumber to ${startPage}.`
+        : '';
+      
       const parts = [
         {
           text: `You are an exam parsing assistant. Analyse the uploaded PDF files and return a structured JSON array.
 
 Requirements:
 - Identify every question in reading order.
+- For each question, note which PDF page number it appears on in the ORIGINAL FULL DOCUMENT.${pageOffsetNote}
 - Supported types: mcq_single, mcq_multi, true_false, numeric, descriptive.
 - Extract question text verbatim (include any text that IS present, even if there's also an image/diagram).
 - Each question must include an "options" array with label and text for each option.
@@ -193,17 +230,32 @@ Requirements:
     "options": [false, true, false, false]  // Which options contain images? (array matches option order)
   }
 - If an answer key PDF is provided, align the correct option labels in "correct".
-- Preserve mathematical notation exactly.
-- IMPORTANT: Properly escape all special characters in JSON strings (backslashes as \\\\, quotes as \\", newlines as \\n).
+- PRESERVE MATHEMATICAL NOTATION EXACTLY AS IT APPEARS:
+  * Extract ALL LaTeX commands with backslashes: \\times, \\Sigma, \\alpha, \\sqrt, \\frac, \\begin, \\end, etc.
+  * Preserve matrix notation: \\begin{bmatrix}...\\end{bmatrix}, \\begin{pmatrix}...\\end{pmatrix}
+  * Keep special math symbols as-is if no LaTeX: Σ, α, β, π, ∑, ∫, ∞, ≤, ≥, ×, etc.
+  * Keep all mathematical expressions in their original format
+- CRITICAL JSON ESCAPING RULES:
+  * Every backslash MUST be doubled in JSON strings
+  * \\times → \\\\times in JSON
+  * \\Sigma → \\\\Sigma in JSON  
+  * \\begin{bmatrix} → \\\\begin{bmatrix} in JSON
+  * Quotes: \\" 
+  * Newlines: \\n
+  * EXAMPLE: Raw text "$\\times$" MUST be written as "$\\\\times$" in JSON
+  * EXAMPLE: Raw text "\\begin{bmatrix}" MUST be written as "\\\\begin{bmatrix}" in JSON
 
-Return ONLY a JSON array where every question follows this schema:
+Return ONLY a JSON array where every question follows the appropriate schema based on type:
+
+For MCQ questions (mcq_single, mcq_multi):
 {
   "id": "q1",
   "type": "mcq_single",
-  "text": "Question text here...",
+  "text": "Let $A$ be a $2 \\\\times 2$ matrix. What are the eigenvalues of $A^{13}$?",
+  "pageNumber": 1,
   "options": [
-    { "label": "A", "text": "Option A text (can be empty if purely graphical)" },
-    { "label": "B", "text": "Option B text" },
+    { "label": "A", "text": "$\\\\lambda = 1, -1$" },
+    { "label": "B", "text": "$\\\\lambda^{13} = 1$" },
     { "label": "C", "text": "Option C text" },
     { "label": "D", "text": "Option D text" }
   ],
@@ -212,8 +264,67 @@ Return ONLY a JSON array where every question follows this schema:
   "negative_marks": 0,
   "images": {
     "question": false,
-    "options": [false, true, false, false]
+    "options": [false, false, false, false]
   }
+}
+
+For questions with matrices:
+{
+  "id": "q2",
+  "type": "mcq_single",
+  "text": "Given the matrix $$A = \\\\begin{bmatrix} 1 & 2 \\\\\\\\ 3 & 4 \\\\end{bmatrix}$$ find its determinant.",
+  "pageNumber": 2,
+  "options": [
+    { "label": "A", "text": "-2" },
+    { "label": "B", "text": "2" },
+    { "label": "C", "text": "0" },
+    { "label": "D", "text": "10" }
+  ],
+  "correct": ["A"],
+  "marks": 2,
+  "negative_marks": 0
+}
+
+For True/False questions:
+{
+  "id": "q2",
+  "type": "true_false",
+  "text": "Question text here...",
+  "pageNumber": 1,
+  "options": [
+    { "label": "True", "text": "True" },
+    { "label": "False", "text": "False" }
+  ],
+  "correct": ["True"],
+  "marks": 1,
+  "negative_marks": 0
+}
+
+For Numeric questions:
+{
+  "id": "q3",
+  "type": "numeric",
+  "text": "Question text here...",
+  "pageNumber": 1,
+  "options": [],
+  "correct": ["42.5"],
+  "marks": 2,
+  "negative_marks": 0,
+  "images": {
+    "question": false
+  }
+}
+
+For Descriptive questions:
+{
+  "id": "q4",
+  "type": "descriptive",
+  "text": "Question text here...",
+  "pageNumber": 1,
+  "options": [],
+  "correct": [""],
+  "marks": 5,
+  "negative_marks": 0
 }`
         },
         {
@@ -272,7 +383,7 @@ Return ONLY a JSON array where every question follows this schema:
         console.log(`⏱️ Gemini ${reason}. Retrying in ${delay}ms... (attempt ${retryCount + 1}/${this.maxRetries})`);
         
         await new Promise(resolve => setTimeout(resolve, delay));
-        return this.callGeminiAPIWithFiles(questionPaperBuffer, answerKeyBuffer, retryCount + 1);
+        return this.callGeminiAPIWithFiles(questionPaperBuffer, answerKeyBuffer, startPage, retryCount + 1);
       }
       
       // Handle other specific errors
@@ -389,14 +500,33 @@ Return ONLY a JSON array where every question follows this schema:
       }
 
       // Add page number metadata to questions for Phase 2 optimization
-      // Estimate page number based on position in chunk
       if (chunkPageRange) {
         questions.forEach((q, index) => {
-          // Distribute questions evenly across the chunk's page range
-          const pagesInChunk = chunkPageRange.end - chunkPageRange.start + 1
-          const estimatedPageOffset = Math.floor((index / questions.length) * pagesInChunk)
-          q._estimatedPage = chunkPageRange.start + estimatedPageOffset
+          // Use Gemini-provided page number if available
+          if (q.pageNumber && typeof q.pageNumber === 'number') {
+            // Adjust for chunk offset (Gemini returns page relative to chunk)
+            q.sourcePageNumber = q.pageNumber
+            q._estimatedPage = q.pageNumber
+          } else {
+            // Fallback: Distribute questions evenly across the chunk's page range
+            const pagesInChunk = chunkPageRange.end - chunkPageRange.start + 1
+            const estimatedPageOffset = Math.floor((index / questions.length) * pagesInChunk)
+            q._estimatedPage = chunkPageRange.start + estimatedPageOffset
+            q.sourcePageNumber = chunkPageRange.start + estimatedPageOffset
+          }
           q._pageRange = chunkPageRange // Keep for fallback
+          
+          // Clean up temporary pageNumber field
+          delete q.pageNumber
+        })
+      } else {
+        // No chunk info, use Gemini page numbers directly
+        questions.forEach((q) => {
+          if (q.pageNumber && typeof q.pageNumber === 'number') {
+            q.sourcePageNumber = q.pageNumber
+            q._estimatedPage = q.pageNumber
+            delete q.pageNumber
+          }
         })
       }
  
@@ -531,7 +661,14 @@ Return ONLY a JSON array where every question follows this schema:
               const url = await this.uploadBase64ToCloudinary(base64Data, identifier, folder)
               
               if (url) {
-                question.questionImageUrl = url
+                question.questionImageUrl = url // Legacy field
+                question.diagram = {
+                  present: true,
+                  url: url,
+                  page: page,
+                  description: 'Extracted diagram from PDF',
+                  uploaded_at: new Date().toISOString()
+                }
                 console.log(`   ✅ Question ${question.id} image uploaded`)
                 console.log(`   🔗 URL: ${url}`)
               }
@@ -553,7 +690,13 @@ Return ONLY a JSON array where every question follows this schema:
                     folder
                   )
                   if (url) {
-                    question.questionImageUrl = url
+                    question.questionImageUrl = url // Legacy field
+                    question.diagram = {
+                      present: true,
+                      url: url,
+                      description: 'Extracted diagram from PDF (fallback method)',
+                      uploaded_at: new Date().toISOString()
+                    }
                     console.log(`   ✅ Question ${question.id} image uploaded (via fallback)`)
                   }
                 }
