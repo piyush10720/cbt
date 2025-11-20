@@ -18,7 +18,8 @@ import {
   LogOut,
   Menu,
   Plus,
-  Home
+  Home,
+  BookmarkCheck
 } from 'lucide-react'
 
 const Layout: React.FC = () => {
@@ -37,6 +38,7 @@ const Layout: React.FC = () => {
     { name: 'Dashboard', href: '/dashboard', icon: Home },
     { name: 'Exams', href: '/exams', icon: BookOpen },
     { name: 'Results', href: '/results', icon: BarChart3 },
+    { name: 'Bookmarks', href: '/bookmarks', icon: BookmarkCheck },
   ]
 
   const isActive = (path: string) => {

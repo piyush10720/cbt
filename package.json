@@ -1,0 +1,34 @@
+{
+  "name": "cbt-platform",
+  "version": "1.0.0",
+  "description": "Computer-Based Testing (CBT) Platform with AI-powered question parsing",
+  "private": true,
+  "scripts": {
+    "test": "npm run test:unit && npm run test:e2e",
+    "test:unit": "cd backend && npm test",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:report": "playwright show-report",
+    "test:image-cropper": "cd backend && npm test -- src/utils/__tests__/imageCropper.test.js",
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "start:backend": "cd backend && npm start",
+    "start:frontend": "cd frontend && npm run dev",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev"
+  },
+  "keywords": [
+    "cbt",
+    "exam",
+    "education",
+    "testing",
+    "ai"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@playwright/test": "^1.48.2",
+    "playwright": "^1.48.2"
+  }
+}
+

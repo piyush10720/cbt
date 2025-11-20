@@ -45,7 +45,8 @@ const ExamWizard: React.FC<ExamWizardProps> = ({
         allowReview: true,
         preventTabSwitch: true,
         webcamMonitoring: false,
-        maxAttempts: 1
+        maxAttempts: 1,
+        allowCalculator: false
       },
       schedule: {
         startDate: new Date().toISOString().slice(0, 16),

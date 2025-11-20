@@ -71,7 +71,7 @@ const submitAnswer = async (req, res) => {
     
     // Update the answer with marking results
     const answerIndex = result.answers.findIndex(
-      answer => answer.questionId.toString() === questionId.toString()
+      answer => answer.questionId && answer.questionId.toString() === questionId.toString()
     );
 
     if (answerIndex !== -1) {
@@ -146,7 +146,7 @@ const getExamProgress = async (req, res) => {
         status: result.status,
         attemptNumber: result.attemptNumber,
         answers: result.answers.map(answer => ({
-          questionId: answer.questionId._id,
+          questionId: answer.questionId ? answer.questionId._id : null,
           userAnswer: answer.userAnswer,
           isMarkedForReview: answer.isMarkedForReview,
           timeSpent: answer.timeSpent,
@@ -298,18 +298,36 @@ const getResult = async (req, res) => {
 
     // Include answers if requested and user has permission
     if (includeAnswers === 'true') {
-      responseData.answers = result.answers.map(answer => ({
-        questionId: answer.questionId._id,
-        questionText: answer.questionId.text,
-        questionType: answer.questionId.type,
-        questionOptions: answer.questionId.options,
-        userAnswer: answer.userAnswer,
-        correctAnswer: answer.questionId.correct,
-        isCorrect: answer.isCorrect,
-        marksAwarded: answer.marksAwarded,
-        timeSpent: answer.timeSpent,
-        isMarkedForReview: answer.isMarkedForReview
-      }));
+      responseData.answers = result.answers.map(answer => {
+        // Handle case where question might have been deleted
+        if (!answer.questionId) {
+          return {
+            questionId: answer.questionId,
+            questionText: 'Question not available (deleted)',
+            questionType: 'unknown',
+            questionOptions: [],
+            userAnswer: answer.userAnswer,
+            correctAnswer: [],
+            isCorrect: answer.isCorrect,
+            marksAwarded: answer.marksAwarded,
+            timeSpent: answer.timeSpent,
+            isMarkedForReview: answer.isMarkedForReview
+          };
+        }
+        
+        return {
+          questionId: answer.questionId._id,
+          questionText: answer.questionId.text,
+          questionType: answer.questionId.type,
+          questionOptions: answer.questionId.options,
+          userAnswer: answer.userAnswer,
+          correctAnswer: answer.questionId.correct,
+          isCorrect: answer.isCorrect,
+          marksAwarded: answer.marksAwarded,
+          timeSpent: answer.timeSpent,
+          isMarkedForReview: answer.isMarkedForReview
+        };
+      });
     }
 
     // Include cheating flags if user is exam creator or admin

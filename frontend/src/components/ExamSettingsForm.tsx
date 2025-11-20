@@ -131,6 +131,16 @@ const ExamSettingsForm: React.FC<ExamSettingsFormProps> = ({
               </label>
             </div>
             <div>
+              <label className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={examSettings.settings.allowCalculator}
+                  onChange={(e) => handleSettingsChange('allowCalculator', e.target.checked)}
+                />
+                <span className="text-sm">Allow Calculator</span>
+              </label>
+            </div>
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Maximum Attempts
               </label>

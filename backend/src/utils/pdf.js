@@ -1,14 +1,43 @@
-const sharp = require('sharp')
+const { createCanvas } = require('@napi-rs/canvas')
 const { PDFDocument } = require('pdf-lib')
-const pdf = require('pdf-poppler')
-const fs = require('fs').promises
-const path = require('path')
-const os = require('os')
+const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js')
 
 const DEFAULT_PDF_DENSITY = 220
 
-// Split PDF into chunks to avoid token limits
-const splitPdfIntoChunks = async (pdfBuffer, { pagesPerChunk = 5 } = {}) => {
+// Disable verbose font warnings from pdf.js
+pdfjsLib.GlobalWorkerOptions.workerSrc = null
+
+// Aggressive warning suppression for pdfjs font issues
+const originalWarn = console.warn
+const originalError = console.error
+const suppressedPatterns = [
+  'getPathGenerator',
+  'Times_path',
+  'TT: undefined',
+  'Requesting object that isn\'t resolved yet',
+  'ignoring character'
+]
+
+console.warn = (...args) => {
+  const msg = String(args[0] || '')
+  if (suppressedPatterns.some(pattern => msg.includes(pattern))) {
+    return // Suppress font/path warnings
+  }
+  originalWarn.apply(console, args)
+}
+
+console.error = (...args) => {
+  const msg = String(args[0] || '')
+  if (suppressedPatterns.some(pattern => msg.includes(pattern))) {
+    return // Suppress font/path errors masquerading as warnings
+  }
+  originalError.apply(console, args)
+}
+
+/**
+ * Split PDF into chunks to avoid token limits
+ */
+const splitPdfIntoChunks = async (pdfBuffer, { pagesPerChunk = 10 } = {}) => {
   const pdfDoc = await PDFDocument.load(pdfBuffer)
   const totalPages = pdfDoc.getPageCount()
   const chunks = []
@@ -25,114 +54,123 @@ const splitPdfIntoChunks = async (pdfBuffer, { pagesPerChunk = 5 } = {}) => {
   return chunks
 }
 
-// Render a single PDF page to PNG buffer with Sharp first, pdf-poppler fallback
-const renderPdfToPng = async (pdfBuffer, { page = 1, density = DEFAULT_PDF_DENSITY } = {}) => {
-  const pageIndex = Math.max(page - 1, 0)
-  
-  // Try Sharp first (fast, works for most PDFs)
-  try {
-    const pngBuffer = await sharp(pdfBuffer, {
-      density: Math.round(density),
-      page: pageIndex
-    })
-      .ensureAlpha()
-      .png()
-      .toBuffer()
-    
-    return pngBuffer
-  } catch (sharpError) {
-    // Fall back to pdf-poppler for PDFs with complex embedded images
-    console.warn(`Sharp failed on page ${page}, using pdf-poppler fallback...`)
-    
-    let tempPdfPath = null
-    let tempOutputDir = null
-    
+/**
+ * Custom Canvas Factory for pdfjs-dist with @napi-rs/canvas
+ * Prevents cleanup errors by providing safe destroy methods
+ */
+class NodeCanvasFactory {
+  create(width, height) {
+    const canvas = createCanvas(width, height)
+    return {
+      canvas,
+      context: canvas.getContext('2d')
+    }
+  }
+
+  reset(canvasAndContext, width, height) {
+    canvasAndContext.canvas.width = width
+    canvasAndContext.canvas.height = height
+  }
+
+  destroy(canvasAndContext) {
+    // Safe cleanup - just clear the canvas instead of setting width to 0
     try {
-      // Create temporary files
-      tempPdfPath = path.join(os.tmpdir(), `temp-pdf-${Date.now()}-${Math.random().toString(36).substr(2, 9)}.pdf`)
-      tempOutputDir = path.join(os.tmpdir(), `temp-output-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`)
-      
-      await fs.mkdir(tempOutputDir, { recursive: true })
-      await fs.writeFile(tempPdfPath, pdfBuffer)
-      
-      // Convert specific page to PNG using pdf-poppler
-      const options = {
-        format: 'png',
-        out_dir: tempOutputDir,
-        out_prefix: 'page',
-        page: page,
-        scale: Math.max(1, Math.min(10, Math.round(density * 10 / 72))) // Scale 1-10
-      }
-      
-      await pdf.convert(tempPdfPath, options)
-      
-      // Read the generated PNG
-      const outputFile = path.join(tempOutputDir, `page-${page}.png`)
-      const pngBuffer = await fs.readFile(outputFile)
-      
-      console.log(`✓ pdf-poppler rendered page ${page}`)
-      
-      return pngBuffer
-    } catch (popplerError) {
-      console.error(`Both Sharp and pdf-poppler failed for page ${page}:`, popplerError.message)
-      throw new Error(`Could not render page ${page}`)
-    } finally {
-      // Cleanup temp files
-      if (tempPdfPath) await fs.unlink(tempPdfPath).catch(() => {})
-      if (tempOutputDir) await fs.rm(tempOutputDir, { recursive: true, force: true }).catch(() => {})
+      canvasAndContext.canvas.width = 1
+      canvasAndContext.canvas.height = 1
+    } catch (e) {
+      // Ignore cleanup errors
     }
   }
 }
 
-// Crop a bounding box from a PNG buffer
-const cropBoundingBox = async (pagePngBuffer, diagram) => {
-  if (!diagram || typeof diagram !== 'object' || !diagram.bounding_box) {
-    throw new Error('Invalid diagram metadata for cropping')
-  }
+/**
+ * Convert a single PDF page to PNG using pdf.js
+ * Pure JavaScript PDF rendering with canvas
+ */
+const renderPdfToPng = async (pdfBuffer, { page = 1, density = DEFAULT_PDF_DENSITY } = {}) => {
+  try {
+    const scale = density / 72 // PDF default is 72 DPI
 
-  const { x, y, width, height } = diagram.bounding_box
-  if ([x, y, width, height].some((value) => typeof value !== 'number')) {
-    throw new Error('Bounding box must contain numeric coordinates')
-  }
-
-  const image = sharp(pagePngBuffer)
-  const metadata = await image.metadata()
-
-  const pageWidth = diagram.page_width || metadata.width || 1
-  const pageHeight = diagram.page_height || metadata.height || 1
-
-  const scaleX = (metadata.width || pageWidth) / pageWidth
-  const scaleY = (metadata.height || pageHeight) / pageHeight
-
-  const left = Math.max(Math.round(x * scaleX), 0)
-  const top = Math.max(Math.round(y * scaleY), 0)
-  const cropWidth = Math.max(Math.round(width * scaleX), 1)
-  const cropHeight = Math.max(Math.round(height * scaleY), 1)
-
-  const maxWidth = (metadata.width || cropWidth) - left
-  const maxHeight = (metadata.height || cropHeight) - top
-
-  const safeWidth = Math.min(cropWidth, maxWidth)
-  const safeHeight = Math.min(cropHeight, maxHeight)
-
-  if (safeWidth <= 0 || safeHeight <= 0) {
-    throw new Error('Calculated crop box is outside of page bounds')
-  }
-
-  return image
-    .extract({
-      left,
-      top,
-      width: safeWidth,
-      height: safeHeight
+    // Load PDF document with custom canvas factory
+    const loadingTask = pdfjsLib.getDocument({
+      data: new Uint8Array(pdfBuffer),
+      useSystemFonts: true,
+      standardFontDataUrl: null,
+      canvasFactory: new NodeCanvasFactory()
     })
-    .ensureAlpha()
-    .png()
-    .toBuffer()
+    
+    const pdfDocument = await loadingTask.promise
+    
+    // Get the specific page
+    const pdfPage = await pdfDocument.getPage(page)
+    const viewport = pdfPage.getViewport({ scale })
+    
+    // Create canvas
+    const canvas = createCanvas(Math.floor(viewport.width), Math.floor(viewport.height))
+    const context = canvas.getContext('2d')
+    
+    // Render PDF page to canvas
+    const renderContext = {
+      canvasContext: context,
+      viewport: viewport
+    }
+    
+    await pdfPage.render(renderContext).promise
+    
+    // Convert canvas to PNG buffer
+    const pngBuffer = canvas.toBuffer('image/png')
+    
+    // Cleanup - be careful with destroy
+    try {
+      pdfPage.cleanup()
+    } catch (e) {
+      // Ignore cleanup errors
+    }
+      
+      return pngBuffer
+
+  } catch (error) {
+    console.error(`Failed to convert PDF page ${page} to PNG:`, error.message)
+    throw new Error(`Could not render page ${page}: ${error.message}`)
+  }
+}
+
+/**
+ * Extract specific pages from PDF and create a new PDF with only those pages
+ */
+const extractSpecificPages = async (pdfBuffer, pageNumbers) => {
+  const pdfDoc = await PDFDocument.load(pdfBuffer)
+  const totalPages = pdfDoc.getPageCount()
+  
+  // Validate and sort page numbers
+  const validPages = [...new Set(pageNumbers)]
+    .filter(p => p >= 1 && p <= totalPages)
+    .sort((a, b) => a - b)
+  
+  if (validPages.length === 0) {
+    throw new Error('No valid pages specified')
+  }
+  
+  // Create new PDF with only specified pages
+  const newDoc = await PDFDocument.create()
+  const copiedPages = await newDoc.copyPages(
+    pdfDoc, 
+    validPages.map(p => p - 1) // Convert to 0-based index
+  )
+  copiedPages.forEach((page) => newDoc.addPage(page))
+  
+  const buffer = Buffer.from(await newDoc.save())
+  
+  return {
+    buffer,
+    pages: validPages,
+    originalPageCount: totalPages,
+    extractedPageCount: validPages.length
+  }
 }
 
 module.exports = {
   renderPdfToPng,
-  cropBoundingBox,
-  splitPdfIntoChunks
+  splitPdfIntoChunks,
+  extractSpecificPages
 }

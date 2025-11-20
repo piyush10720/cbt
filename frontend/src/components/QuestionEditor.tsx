@@ -5,12 +5,17 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { AlertCircle, ChevronLeft, ChevronRight, Copy, Delete, Minus, Plus, RefreshCw } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { getOptionLabel, getOptionText, hasOptionDiagram, getOptionDiagramUrl } from '@/utils/questionHelpers'
+import ImageModal from '@/components/ImageModal'
 
-const getOptionIdentifiers = (text: string) => {
+const getOptionIdentifiers = (option: string | any) => {
   const identifiers = new Set<string>()
-  if (!text) return identifiers
+  
+  // Get the text/label from the option (could be string or object)
+  const optionLabel = typeof option === 'string' ? option : (option?.label || option?.text || '')
+  if (!optionLabel) return identifiers
 
-  const trimmed = text.toString().trim()
+  const trimmed = optionLabel.toString().trim()
   if (!trimmed) return identifiers
 
   identifiers.add(trimmed.toLowerCase())
@@ -23,7 +28,7 @@ const getOptionIdentifiers = (text: string) => {
   return identifiers
 }
 
-const optionMatchesValue = (option: string, value: string | number | undefined) => {
+const optionMatchesValue = (option: string | any, value: string | number | undefined) => {
   if (value === undefined || value === null) return false
   const valueString = value.toString().trim().toLowerCase()
   if (!valueString) return false
@@ -32,11 +37,11 @@ const optionMatchesValue = (option: string, value: string | number | undefined) 
   return identifiers.has(valueString)
 }
 
-const isOptionCorrect = (question: Question, option: string) => {
+const isOptionCorrect = (question: Question, option: string | any) => {
   return (question.correct || []).some((value) => optionMatchesValue(option, value))
 }
 
-const removeOptionMatches = (correct: any[] = [], option: string) => {
+const removeOptionMatches = (correct: any[] = [], option: string | any) => {
   return correct.filter((value) => !optionMatchesValue(option, value))
 }
 
@@ -61,6 +66,7 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({
 }) => {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isResetting, setIsResetting] = useState(false)
+  const [modalImage, setModalImage] = useState<{ src: string; alt: string } | null>(null)
 
   const currentQuestion = questions[currentIndex]
   const totalQuestions = questions.length
@@ -309,6 +315,22 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({
               className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               placeholder="Enter the question text"
             />
+            {currentQuestion.diagram?.present && currentQuestion.diagram?.url && (
+              <div className="mt-2">
+                <img 
+                  src={currentQuestion.diagram.url} 
+                  alt="Question diagram"
+                  className="max-w-full h-auto max-h-60 rounded border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity"
+                  onClick={() => setModalImage({ 
+                    src: currentQuestion.diagram!.url!, 
+                    alt: currentQuestion.diagram?.description || 'Question diagram' 
+                  })}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  {currentQuestion.diagram.description || 'Diagram from PDF'} <span className="text-blue-600">(Click to enlarge)</span>
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -399,40 +421,67 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({
               </div>
 
               <div className="space-y-3">
-                {currentQuestion.options.map((option, index) => (
-                  <div key={index} className="flex items-start gap-2">
-                    {currentQuestion.type === 'mcq_multi' ? (
-                      <input
-                        type="checkbox"
-                        checked={isOptionCorrect(currentQuestion, option)}
-                        onChange={() => handleCorrectToggle(currentQuestion.id, option)}
-                        className="mt-2"
-                      />
-                    ) : (
-                      <input
-                        type="radio"
-                        name={`correct-${currentQuestion.id}`}
-                        checked={isOptionCorrect(currentQuestion, option)}
-                        onChange={() => handleCorrectToggle(currentQuestion.id, option)}
-                        className="mt-2"
-                      />
-                    )}
-                    <Input
-                      value={option}
-                      onChange={(event) => handleOptionChange(currentQuestion.id, index, event.target.value)}
-                      placeholder={`Option ${index + 1}`}
-                    />
-                    {currentQuestion.options.length > 2 && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleRemoveOption(currentQuestion.id, index)}
-                      >
-                        <Minus className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                ))}
+                {currentQuestion.options.map((option, index) => {
+                  const optionLabel = getOptionLabel(option)
+                  const optionText = getOptionText(option)
+                  const hasDiagram = hasOptionDiagram(option)
+                  const diagramUrl = getOptionDiagramUrl(option)
+                  
+                  return (
+                    <div key={index} className="space-y-2">
+                      <div className="flex items-start gap-2">
+                        {currentQuestion.type === 'mcq_multi' ? (
+                          <input
+                            type="checkbox"
+                            checked={isOptionCorrect(currentQuestion, option)}
+                            onChange={() => handleCorrectToggle(currentQuestion.id, optionLabel)}
+                            className="mt-2"
+                          />
+                        ) : (
+                          <input
+                            type="radio"
+                            name={`correct-${currentQuestion.id}`}
+                            checked={isOptionCorrect(currentQuestion, option)}
+                            onChange={() => handleCorrectToggle(currentQuestion.id, optionLabel)}
+                            className="mt-2"
+                          />
+                        )}
+                        <div className="flex-1">
+                          <Input
+                            value={optionText}
+                            onChange={(event) => handleOptionChange(currentQuestion.id, index, event.target.value)}
+                            placeholder={`Option ${optionLabel || index + 1}`}
+                          />
+                          {hasDiagram && diagramUrl && (
+                            <div className="mt-2">
+                              <img 
+                                src={diagramUrl} 
+                                alt={`Option ${optionLabel} diagram`}
+                                className="max-w-full h-auto max-h-40 rounded border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity"
+                                onClick={() => setModalImage({ 
+                                  src: diagramUrl, 
+                                  alt: `Option ${optionLabel} - Diagram` 
+                                })}
+                              />
+                              <p className="text-xs text-gray-500 mt-1">
+                                Diagram from PDF <span className="text-blue-600">(Click to enlarge)</span>
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                        {currentQuestion.options.length > 2 && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleRemoveOption(currentQuestion.id, index)}
+                          >
+                            <Minus className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )}
@@ -451,6 +500,13 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({
           Next Question <ChevronRight className="h-4 w-4 ml-2" />
         </Button>
       </div>
+
+      <ImageModal 
+        src={modalImage?.src || ''} 
+        alt={modalImage?.alt || ''} 
+        isOpen={!!modalImage} 
+        onClose={() => setModalImage(null)} 
+      />
     </div>
   )
 }

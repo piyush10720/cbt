@@ -90,6 +90,10 @@ const examSchema = new mongoose.Schema({
       type: Number,
       default: 1,
       min: [1, 'At least 1 attempt must be allowed']
+    },
+    allowCalculator: {
+      type: Boolean,
+      default: false
     }
   },
   schedule: {

@@ -9,6 +9,8 @@ import LoadingSpinner from '@/components/LoadingSpinner'
 import { calculatePercentage, formatDate, getGradeFromPercentage, getPerformanceColor } from '@/lib/utils'
 import { AlertCircle, AlertTriangle, ArrowLeft, Award, BarChart3, CheckCircle2, CircleSlash, Clock, Flag, Lightbulb } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { getOptionLabel, getOptionText, hasOptionDiagram, getOptionDiagramUrl } from '@/utils/questionHelpers'
+import ImageModal from '@/components/ImageModal'
 
 type ExamDetailsResponse = {
   exam: {
@@ -26,9 +28,14 @@ type ExamDetailsResponse = {
       id?: string
       type: string
       text: string
-      options?: string[]
+      options?: any[]
       marks: number
       order?: number
+      diagram?: {
+        present: boolean
+        url?: string
+        description?: string
+      }
     }>
     settings: {
       duration: number
@@ -77,6 +84,7 @@ const ExamDetailsPage: React.FC = () => {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { user, isTeacher, isAdmin } = useAuth()
+  const [modalImage, setModalImage] = useState<{ src: string; alt: string } | null>(null)
 
   const { data, isLoading, isError, refetch, isFetching } = useQuery<ExamDetailsResponse>(
     ['exam-details', id],
@@ -351,17 +359,70 @@ const ExamDetailsPage: React.FC = () => {
           ) : (
             <div className="space-y-4">
               {questions.map((question, index) => (
-                <div key={question._id} className="p-4 border border-gray-200 rounded-lg">
+                <div key={question._id} className="p-4 border border-gray-200 rounded-lg space-y-3">
                   <div className="flex items-start justify-between">
-                    <div>
+                    <div className="flex-1">
                       <p className="text-sm font-semibold text-gray-800">Question {index + 1}</p>
-                      <p className="text-sm text-gray-600 mt-1">{question.text}</p>
+                      <p className="text-sm text-gray-600 mt-1 whitespace-pre-line">{question.text}</p>
+                      {question.diagram?.present && question.diagram?.url && (
+                        <div className="mt-2">
+                          <img 
+                            src={question.diagram.url} 
+                            alt="Question diagram"
+                            className="max-w-full h-auto max-h-48 rounded border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity"
+                            onClick={() => setModalImage({ 
+                              src: question.diagram!.url!, 
+                              alt: question.diagram?.description || 'Question diagram' 
+                            })}
+                          />
+                          {question.diagram.description && (
+                            <p className="text-xs text-gray-500 mt-1 italic">
+                              {question.diagram.description} <span className="text-blue-600">(Click to enlarge)</span>
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
-                    <span className="text-xs uppercase tracking-wide text-gray-500">
-                      {question.type}
+                    <span className="text-xs uppercase tracking-wide text-gray-500 ml-2">
+                      {question.type.replace(/_/g, ' ')}
                     </span>
                   </div>
-                  <div className="mt-3 text-xs text-gray-500 flex items-center justify-between">
+                  
+                  {question.options && question.options.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium text-gray-700">Options:</p>
+                      <div className="space-y-2">
+                        {question.options.map((option, optionIndex) => {
+                          const optionLabel = getOptionLabel(option)
+                          const optionText = getOptionText(option)
+                          const hasDiagram = hasOptionDiagram(option)
+                          const diagramUrl = getOptionDiagramUrl(option)
+                          
+                          return (
+                            <div key={optionIndex} className="flex items-start gap-2 text-sm text-gray-600">
+                              <span className="font-medium min-w-[20px]">{optionLabel}.</span>
+                              <div className="flex-1">
+                                <span>{optionText}</span>
+                                {hasDiagram && diagramUrl && (
+                                  <img 
+                                    src={diagramUrl} 
+                                    alt={`Option ${optionLabel}`}
+                                    className="mt-1 max-w-full h-auto max-h-32 rounded border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity"
+                                    onClick={() => setModalImage({ 
+                                      src: diagramUrl, 
+                                      alt: `Option ${optionLabel} - Diagram` 
+                                    })}
+                                  />
+                                )}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="mt-3 text-xs text-gray-500 flex items-center justify-between border-t border-gray-100 pt-2">
                     <p>Marks: {question.marks}</p>
                     {typeof question.order === 'number' && <p>Order: {question.order + 1}</p>}
                   </div>
@@ -402,6 +463,13 @@ const ExamDetailsPage: React.FC = () => {
           </CardContent>
         </Card>
       )}
+
+      <ImageModal 
+        src={modalImage?.src || ''} 
+        alt={modalImage?.alt || ''} 
+        isOpen={!!modalImage} 
+        onClose={() => setModalImage(null)} 
+      />
     </div>
   )
 }

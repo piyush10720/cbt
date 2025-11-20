@@ -5,7 +5,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 // Create axios instance
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: Number(import.meta.env.VITE_API_TIMEOUT_MS ?? 600000),
+  timeout: Number(import.meta.env.VITE_API_TIMEOUT_MS ?? 1200000), // 20 minutes default
   headers: {
     'Content-Type': 'application/json',
   },
@@ -62,12 +62,35 @@ export interface User {
   lastLogin?: string
 }
 
+export interface QuestionDiagram {
+  present: boolean
+  page?: number
+  page_width?: number
+  page_height?: number
+  bounding_box?: {
+    x: number
+    y: number
+    width: number
+    height: number
+  }
+  description?: string
+  url?: string
+  uploaded_at?: string
+  upload_error?: string
+}
+
+export interface QuestionOption {
+  label: string
+  text: string
+  diagram?: QuestionDiagram
+}
+
 export interface Question {
   _id?: string
   id: string
   type: 'mcq_single' | 'mcq_multi' | 'true_false' | 'numeric' | 'descriptive'
   text: string
-  options: string[]
+  options: (string | QuestionOption)[] // Support both old string format and new object format
   correct: string[]
   marks: number
   negative_marks: number
@@ -76,6 +99,7 @@ export interface Question {
   topic?: string
   explanation?: string
   order?: number
+  diagram?: QuestionDiagram
 }
 
 export interface Explanation {
@@ -166,6 +190,32 @@ export interface Result {
     overallComment: string
   }
   createdAt: string
+}
+
+export interface Bookmark {
+  _id: string
+  userId: string
+  questionId: Question
+  examId: Exam
+  examTitle: string
+  resultId: string
+  questionText: string
+  questionType: string
+  userAnswer: any
+  correctAnswer: string[]
+  isCorrect: boolean
+  marksAwarded: number
+  notes?: string
+  tags?: string[]
+  createdAt: string
+  updatedAt: string
+}
+
+export interface BookmarkFolder {
+  _id: string
+  examTitle: string
+  count: number
+  lastBookmarked: string
 }
 
 // Auth API
@@ -357,6 +407,41 @@ export const resultAPI = {
     data: { type: string; details?: string }
   ): Promise<AxiosResponse<{ message: string; flag: any }>> =>
     api.post(`/result/${resultId}/cheating-flag`, data),
+}
+
+// Bookmark API
+export const bookmarkAPI = {
+  toggleBookmark: (data: {
+    questionId: string
+    resultId: string
+  }): Promise<AxiosResponse<{ message: string; bookmarked: boolean; bookmark?: Bookmark }>> =>
+    api.post('/bookmarks/toggle', data),
+
+  getBookmarks: (params?: {
+    examId?: string
+    search?: string
+    sortBy?: string
+    order?: string
+  }): Promise<AxiosResponse<{ bookmarks: Bookmark[]; count: number }>> =>
+    api.get('/bookmarks', { params }),
+
+  getBookmarkFolders: (): Promise<AxiosResponse<{ folders: BookmarkFolder[] }>> =>
+    api.get('/bookmarks/folders'),
+
+  getBookmark: (id: string): Promise<AxiosResponse<{ bookmark: Bookmark }>> =>
+    api.get(`/bookmarks/${id}`),
+
+  updateBookmark: (
+    id: string,
+    data: { notes?: string; tags?: string[] }
+  ): Promise<AxiosResponse<{ message: string; bookmark: Bookmark }>> =>
+    api.put(`/bookmarks/${id}`, data),
+
+  deleteBookmark: (id: string): Promise<AxiosResponse<{ message: string }>> =>
+    api.delete(`/bookmarks/${id}`),
+
+  checkBookmarks: (resultId: string): Promise<AxiosResponse<{ bookmarkedQuestions: string[] }>> =>
+    api.get(`/bookmarks/check/${resultId}`),
 }
 
 export default api

@@ -7,8 +7,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import { formatTime } from '@/lib/utils'
-import { AlertCircle, CheckCircle, ChevronLeft, ChevronRight, Clock, Flag, Send } from 'lucide-react'
+import { AlertCircle, CheckCircle, ChevronLeft, ChevronRight, Clock, Flag, Send, Calculator } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { getOptionLabel, getOptionText, hasOptionDiagram, getOptionDiagramUrl } from '@/utils/questionHelpers'
+import ImageModal from '@/components/ImageModal'
+import ScientificCalculator from '@/components/ScientificCalculator'
 
 type StartExamResponse = {
   message: string
@@ -29,15 +32,21 @@ type StartExamResponse = {
         preventTabSwitch: boolean
         webcamMonitoring: boolean
         maxAttempts: number
+        allowCalculator: boolean
       }
       questions: Array<{
         _id?: string
         id?: string
         type: string
         text: string
-        options?: string[]
+        options?: any[]
         marks: number
         order?: number
+        diagram?: {
+          present: boolean
+          url?: string
+          description?: string
+        }
       }>
     }
     attempt: {
@@ -69,6 +78,8 @@ const TakeExamPage: React.FC = () => {
   const hasBlurredRef = useRef(false)
   const fullscreenRequestedRef = useRef(false)
   const [fullscreenError, setFullscreenError] = useState<string | null>(null)
+  const [modalImage, setModalImage] = useState<{ src: string; alt: string } | null>(null)
+  const [showCalculator, setShowCalculator] = useState(false)
 
   const {
     data,
@@ -333,55 +344,94 @@ const TakeExamPage: React.FC = () => {
       case 'true_false':
         return (
           <div className="space-y-3">
-            {(currentQuestion.options || ['True', 'False']).map((option) => (
-              <label
-                key={option}
-                className={`flex items-center space-x-3 rounded-lg border p-3 cursor-pointer transition-colors ${
-                  answerValue === option ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-300'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name={currentQuestionId}
-                  value={option}
-                  checked={answerValue === option}
-                  onChange={() => handleAnswerChange(currentQuestionId, option)}
-                  className="h-4 w-4"
-                />
-                <span className="text-sm text-gray-700">{option}</span>
-              </label>
-            ))}
+            {(currentQuestion.options || ['True', 'False']).map((option, idx) => {
+              const optionLabel = getOptionLabel(option)
+              const optionText = getOptionText(option)
+              const hasDiagram = hasOptionDiagram(option)
+              const diagramUrl = getOptionDiagramUrl(option)
+              
+              return (
+                <label
+                  key={optionLabel || idx}
+                  className={`flex items-start space-x-3 rounded-lg border p-3 cursor-pointer transition-colors ${
+                    answerValue === optionLabel ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-300'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name={currentQuestionId}
+                    value={optionLabel}
+                    checked={answerValue === optionLabel}
+                    onChange={() => handleAnswerChange(currentQuestionId, optionLabel)}
+                    className="h-4 w-4 mt-1"
+                  />
+                  <div className="flex-1">
+                    <span className="text-sm text-gray-700">{optionText}</span>
+                    {hasDiagram && diagramUrl && (
+                      <img 
+                        src={diagramUrl} 
+                        alt={`Option ${optionLabel}`}
+                        className="mt-2 max-w-full h-auto max-h-48 rounded border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          setModalImage({ src: diagramUrl, alt: `Option ${optionLabel} - Diagram` })
+                        }}
+                      />
+                    )}
+                  </div>
+                </label>
+              )
+            })}
           </div>
         )
 
       case 'mcq_multi':
         return (
           <div className="space-y-3">
-            {(currentQuestion.options || []).map((option) => {
+            {(currentQuestion.options || []).map((option, idx) => {
+              const optionLabel = getOptionLabel(option)
+              const optionText = getOptionText(option)
+              const hasDiagram = hasOptionDiagram(option)
+              const diagramUrl = getOptionDiagramUrl(option)
               const selectedOptions: string[] = Array.isArray(answerValue) ? answerValue : []
-              const isSelected = selectedOptions.includes(option)
+              const isSelected = selectedOptions.includes(optionLabel)
               const toggleOption = () => {
                 const updated = isSelected
-                  ? selectedOptions.filter((item) => item !== option)
-                  : [...selectedOptions, option]
+                  ? selectedOptions.filter((item) => item !== optionLabel)
+                  : [...selectedOptions, optionLabel]
                 handleAnswerChange(currentQuestionId, updated)
               }
 
               return (
                 <label
-                  key={option}
-                  className={`flex items-center space-x-3 rounded-lg border p-3 cursor-pointer transition-colors ${
+                  key={optionLabel || idx}
+                  className={`flex items-start space-x-3 rounded-lg border p-3 cursor-pointer transition-colors ${
                     isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-300'
                   }`}
                 >
                   <input
                     type="checkbox"
-                    value={option}
+                    value={optionLabel}
                     checked={isSelected}
                     onChange={toggleOption}
-                    className="h-4 w-4"
+                    className="h-4 w-4 mt-1"
                   />
-                  <span className="text-sm text-gray-700">{option}</span>
+                  <div className="flex-1">
+                    <span className="text-sm text-gray-700">{optionText}</span>
+                    {hasDiagram && diagramUrl && (
+                      <img 
+                        src={diagramUrl} 
+                        alt={`Option ${optionLabel}`}
+                        className="mt-2 max-w-full h-auto max-h-48 rounded border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          setModalImage({ src: diagramUrl, alt: `Option ${optionLabel} - Diagram` })
+                        }}
+                      />
+                    )}
+                  </div>
                 </label>
               )
             })}
@@ -455,15 +505,27 @@ const TakeExamPage: React.FC = () => {
           <h1 className="text-3xl font-bold text-gray-900">{exam.title}</h1>
           <p className="text-sm text-gray-500">Attempt #{attempt.number} · Total Questions: {questions.length}</p>
         </div>
-        <Card className="w-full lg:w-auto">
-          <CardContent className="flex items-center space-x-3 py-3 px-4">
-            <Clock className={`h-5 w-5 ${timeLeft !== null && timeLeft < 300 ? 'text-red-500' : 'text-blue-600'}`} />
-            <div>
-              <p className="text-xs uppercase text-gray-500">Time Remaining</p>
-              <p className="text-lg font-semibold text-gray-900">{timeLeft !== null ? formatTime(timeLeft) : 'Calculating…'}</p>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="flex flex-col sm:flex-row gap-3">
+          {exam.settings.allowCalculator && (
+            <Button
+              onClick={() => setShowCalculator(!showCalculator)}
+              variant="outline"
+              className="flex items-center space-x-2 bg-blue-50 hover:bg-blue-100 border-blue-300"
+            >
+              <Calculator className="h-4 w-4" />
+              <span>{showCalculator ? 'Hide' : 'Show'} Calculator</span>
+            </Button>
+          )}
+          <Card className="w-full lg:w-auto">
+            <CardContent className="flex items-center space-x-3 py-3 px-4">
+              <Clock className={`h-5 w-5 ${timeLeft !== null && timeLeft < 300 ? 'text-red-500' : 'text-blue-600'}`} />
+              <div>
+                <p className="text-xs uppercase text-gray-500">Time Remaining</p>
+                <p className="text-lg font-semibold text-gray-900">{timeLeft !== null ? formatTime(timeLeft) : 'Calculating…'}</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
@@ -477,6 +539,24 @@ const TakeExamPage: React.FC = () => {
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="text-gray-800 leading-relaxed whitespace-pre-line">{currentQuestion?.text}</div>
+              {currentQuestion?.diagram?.present && currentQuestion?.diagram?.url && (
+                <div className="my-4">
+                  <img 
+                    src={currentQuestion.diagram.url} 
+                    alt="Question diagram"
+                    className="max-w-full h-auto max-h-64 rounded border border-gray-300 cursor-pointer hover:opacity-80 transition-opacity"
+                    onClick={() => setModalImage({ 
+                      src: currentQuestion.diagram!.url!, 
+                      alt: currentQuestion.diagram?.description || 'Question diagram' 
+                    })}
+                  />
+                  {currentQuestion.diagram.description && (
+                    <p className="text-sm text-gray-500 mt-2 italic">
+                      {currentQuestion.diagram.description} <span className="text-blue-600">(Click to enlarge)</span>
+                    </p>
+                  )}
+                </div>
+              )}
               {renderQuestionContent()}
             </CardContent>
           </Card>
@@ -584,10 +664,23 @@ const TakeExamPage: React.FC = () => {
               <p>Negative Marking: {exam.settings.negativeMarking ? 'Yes' : 'No'}</p>
               <p>Allow Review: {exam.settings.allowReview ? 'Yes' : 'No'}</p>
               <p>Randomize Questions: {exam.settings.randomizeQuestions ? 'Enabled' : 'Disabled'}</p>
+              <p>Calculator: {exam.settings.allowCalculator ? 'Allowed' : 'Not Allowed'}</p>
             </CardContent>
           </Card>
         </div>
       </div>
+
+      <ImageModal 
+        src={modalImage?.src || ''} 
+        alt={modalImage?.alt || ''} 
+        isOpen={!!modalImage} 
+        onClose={() => setModalImage(null)} 
+      />
+
+      {/* Scientific Calculator */}
+      {exam.settings.allowCalculator && showCalculator && (
+        <ScientificCalculator onClose={() => setShowCalculator(false)} />
+      )}
     </div>
   )
 }

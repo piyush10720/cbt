@@ -15,6 +15,7 @@ import ExamDetailsPage from '@/pages/ExamDetailsPage'
 import TakeExamPage from '@/pages/TakeExamPage'
 import ResultsPage from '@/pages/ResultsPage'
 import ResultDetailsPage from '@/pages/ResultDetailsPage'
+import BookmarksPage from '@/pages/BookmarksPage'
 import ProfilePage from '@/pages/ProfilePage'
 
 // Components
@@ -129,6 +130,7 @@ const AppRoutes: React.FC = () => {
         <Route path="exams/:id/take" element={<TakeExamPage />} />
         <Route path="results" element={<ResultsPage />} />
         <Route path="results/:id" element={<ResultDetailsPage />} />
+        <Route path="bookmarks" element={<BookmarksPage />} />
         <Route path="profile" element={<ProfilePage />} />
       </Route>
 
