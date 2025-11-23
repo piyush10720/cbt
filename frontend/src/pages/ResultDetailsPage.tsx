@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import { calculatePercentage, formatDate, getGradeFromPercentage, getPerformanceColor } from '@/lib/utils'
-import { AlertCircle, AlertTriangle, ArrowLeft, Award, BarChart3, CheckCircle2, CircleSlash, Clock, Flag, Lightbulb, Bookmark, BookmarkCheck } from 'lucide-react'
+import { AlertCircle, AlertTriangle, ArrowLeft, Award, BarChart3, CheckCircle2, CircleSlash, Clock, Flag, Lightbulb, Bookmark, BookmarkCheck, XCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { getOptionLabel, getOptionText, hasOptionDiagram, getOptionDiagramUrl } from '@/utils/questionHelpers'
 import ImageModal from '@/components/ImageModal'
@@ -41,6 +41,11 @@ type ResultDetailsResponse = {
       questionText?: string
       questionType?: string
       questionOptions?: string[]
+      questionDiagram?: {
+        present?: boolean
+        url?: string
+        description?: string
+      } | null
       userAnswer: any
       correctAnswer?: string[]
       isCorrect?: boolean
@@ -283,14 +288,18 @@ const ResultDetailsPage: React.FC = () => {
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="grid sm:grid-cols-3 gap-4">
-              <div className="rounded-lg border border-gray-200 p-4">
+              <div className={`rounded-lg border p-4 ${result.score < 0 ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}>
                 <p className="text-xs uppercase tracking-wide text-gray-500">Score</p>
-                <p className="text-2xl font-semibold text-gray-900">{result.score} / {result.totalMarks}</p>
+                <p className={`text-2xl font-semibold ${result.score < 0 ? 'text-red-700' : 'text-gray-900'}`}>
+                  {Number(result.score).toFixed(2)} / {result.totalMarks}
+                </p>
                 <p className={`text-sm ${performanceColor}`}>Grade {grade}</p>
               </div>
-              <div className="rounded-lg border border-gray-200 p-4">
+              <div className={`rounded-lg border p-4 ${result.percentage < 0 ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}>
                 <p className="text-xs uppercase tracking-wide text-gray-500">Percentage</p>
-                <p className="text-2xl font-semibold text-gray-900">{result.percentage}%</p>
+                <p className={`text-2xl font-semibold ${result.percentage < 0 ? 'text-red-700' : 'text-gray-900'}`}>
+                  {Number(result.percentage).toFixed(2)}%
+                </p>
                 {exam.settings.passingMarks !== undefined && (
                   <p className="text-sm text-gray-500">
                     Passing: {calculatePercentage(exam.settings.passingMarks, exam.settings.totalMarks)}%
@@ -428,6 +437,16 @@ const ResultDetailsPage: React.FC = () => {
             const explanationState = explanations[answer.questionId]
             const tips = explanationState?.data?.tips ?? []
 
+            // Debug logging
+            console.log(`Question ${index + 1}:`, {
+              questionId: answer.questionId,
+              questionFound: !!question,
+              questionType: question?.type,
+              hasOptions: !!question?.options,
+              optionsLength: question?.options?.length,
+              options: question?.options
+            })
+
             return (
               <div
                 key={answer.questionId || index}
@@ -450,24 +469,24 @@ const ResultDetailsPage: React.FC = () => {
                         block 
                       />
                     </div>
-                    {question?.diagram?.present && question?.diagram?.url && (
+                    {(answer.questionDiagram?.present && answer.questionDiagram?.url) || (question?.diagram?.present && question?.diagram?.url) ? (
                       <div className="mt-2">
                         <img 
-                          src={question.diagram.url} 
+                          src={answer.questionDiagram?.url || question?.diagram?.url} 
                           alt="Question diagram"
                           className="max-w-full h-auto max-h-48 rounded border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity"
                           onClick={() => setModalImage({ 
-                            src: question.diagram!.url!, 
-                            alt: question.diagram?.description || 'Question diagram' 
+                            src: answer.questionDiagram?.url || question?.diagram?.url || '', 
+                            alt: answer.questionDiagram?.description || question?.diagram?.description || 'Question diagram' 
                           })}
                         />
-                        {question.diagram.description && (
+                        {(answer.questionDiagram?.description || question?.diagram?.description) && (
                           <p className="text-xs text-gray-500 mt-1 italic">
-                            {question.diagram.description} <span className="text-blue-600">(Click to enlarge)</span>
+                            {answer.questionDiagram?.description || question?.diagram?.description} <span className="text-blue-600">(Click to enlarge)</span>
                           </p>
                         )}
                       </div>
-                    )}
+                    ) : null}
                   </div>
                   <div className="flex flex-col items-end gap-2">
                     <Button
@@ -505,28 +524,12 @@ const ResultDetailsPage: React.FC = () => {
                 </div>
 
                 <div className="mt-3 space-y-3">
-                  <div className="grid sm:grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <p className="text-xs uppercase text-gray-500">Your answer</p>
-                      <p className="text-gray-800">{renderAnswer(answer.userAnswer)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase text-gray-500">Correct answer</p>
-                      <p className="text-gray-800">
-                        {answer.correctAnswer && answer.correctAnswer.length > 0
-                          ? answer.correctAnswer.join(', ')
-                          : question?.type === 'descriptive'
-                          ? 'Requires manual grading'
-                          : 'Not available'}
-                      </p>
-                    </div>
-                  </div>
-                  
-                  {question?.options && question.options.length > 0 && (
-                    <div className="border-t border-gray-200 pt-3">
-                      <p className="text-xs font-medium text-gray-700 mb-2">All Options:</p>
+                  {/* Show options from question metadata if available, otherwise from answer data */}
+                  {((question?.options && question.options.length > 0) || (answer.questionOptions && answer.questionOptions.length > 0)) && (
+                    <div className="border-t border-gray-200 pt-4 mt-4">
+                      <p className="text-sm font-semibold text-gray-800 mb-3">Options:</p>
                       <div className="space-y-2">
-                        {question.options.map((option, optionIndex) => {
+                        {(question?.options || answer.questionOptions || []).map((option, optionIndex) => {
                           const optionLabel = getOptionLabel(option)
                           const optionText = getOptionText(option)
                           const hasDiagram = hasOptionDiagram(option)
@@ -539,20 +542,36 @@ const ResultDetailsPage: React.FC = () => {
                           return (
                             <div 
                               key={optionIndex} 
-                              className={`flex items-start gap-2 text-sm p-2 rounded ${
-                                isCorrectAnswer ? 'bg-green-50 border border-green-200' : 
-                                isUserAnswer ? 'bg-red-50 border border-red-200' : 
-                                'bg-gray-50'
+                              className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all ${
+                                isCorrectAnswer && isUserAnswer
+                                  ? 'bg-green-100 border-green-500'
+                                  : isUserAnswer && !isCorrectAnswer
+                                  ? 'bg-red-100 border-red-500'
+                                  : isCorrectAnswer && !isUserAnswer
+                                  ? 'bg-gray-100 border-gray-400'
+                                  : 'bg-white border-gray-200'
                               }`}
                             >
-                              <span className="font-medium min-w-[20px]">{optionLabel}.</span>
+                              {/* Icon indicator */}
+                              <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center font-bold ${
+                                isCorrectAnswer && isUserAnswer
+                                  ? 'bg-green-500 text-white'
+                                  : isUserAnswer && !isCorrectAnswer
+                                  ? 'bg-red-500 text-white'
+                                  : isCorrectAnswer && !isUserAnswer
+                                  ? 'bg-gray-400 text-white'
+                                  : 'bg-blue-500 text-white'
+                              }`}>
+                                <span className="text-base">{optionLabel}</span>
+                              </div>
+                              
                               <div className="flex-1">
-                                <MathText text={optionText} className="text-gray-700" />
+                                <MathText text={optionText} className="text-sm text-gray-800" />
                                 {hasDiagram && diagramUrl && (
                                   <img 
                                     src={diagramUrl} 
                                     alt={`Option ${optionLabel}`}
-                                    className="mt-1 max-w-full h-auto max-h-32 rounded border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity"
+                                    className="mt-2 max-w-full h-auto max-h-32 rounded border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity"
                                     onClick={() => setModalImage({ 
                                       src: diagramUrl, 
                                       alt: `Option ${optionLabel} - Diagram` 
@@ -560,15 +579,65 @@ const ResultDetailsPage: React.FC = () => {
                                   />
                                 )}
                               </div>
+
+                              {/* Status icon on right */}
                               {isCorrectAnswer && (
-                                <span className="text-xs text-green-600 font-medium">✓ Correct</span>
+                                <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
+                                  isUserAnswer ? 'bg-green-600' : 'bg-gray-500'
+                                }`}>
+                                  <CheckCircle2 className="h-5 w-5 text-white" />
+                                </div>
                               )}
                               {isUserAnswer && !isCorrectAnswer && (
-                                <span className="text-xs text-red-600 font-medium">✗ Your choice</span>
+                                <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-red-600">
+                                  <XCircle className="h-5 w-5 text-white" />
+                                </div>
                               )}
                             </div>
                           )
                         })}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Numeric/Descriptive Answers */}
+                  {(question?.type === 'numeric' || question?.type === 'descriptive' || answer.questionType === 'numeric' || answer.questionType === 'descriptive') && (
+                    <div className="border-t border-gray-200 pt-4 mt-4">
+                      <div className="grid md:grid-cols-2 gap-4">
+                        <div className={`p-4 rounded-lg border-2 ${
+                          answer.isCorrect === true 
+                            ? 'bg-green-50 border-green-300' 
+                            : answer.isCorrect === false
+                            ? 'bg-red-50 border-red-300'
+                            : 'bg-gray-50 border-gray-300'
+                        }`}>
+                          <p className="text-xs font-medium text-gray-600 mb-2 uppercase">Your Answer</p>
+                          <div className="flex items-center gap-2">
+                            {answer.isCorrect === true && (
+                              <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
+                            )}
+                            {answer.isCorrect === false && (
+                              <XCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
+                            )}
+                            <p className="text-base font-medium text-gray-900">
+                              {answer.userAnswer || '(Not answered)'}
+                            </p>
+                          </div>
+                        </div>
+                        
+                        <div className="p-4 rounded-lg border-2 bg-blue-50 border-blue-300">
+                          <p className="text-xs font-medium text-gray-600 mb-2 uppercase">Correct Answer</p>
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 className="h-5 w-5 text-blue-600 flex-shrink-0" />
+                            <p className="text-base font-medium text-gray-900">
+                              {answer.correctAnswer && answer.correctAnswer.length > 0
+                                ? answer.correctAnswer.join(', ')
+                                : question?.type === 'descriptive'
+                                ? 'Requires manual grading'
+                                : 'Not available'}
+                            </p>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -577,7 +646,7 @@ const ResultDetailsPage: React.FC = () => {
                 <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-gray-500">
                   <span className="flex items-center space-x-1">
                     <Award className="h-4 w-4 text-green-600" />
-                    <span>Marks: {answer.marksAwarded}</span>
+                    <span>Marks: {Number(answer.marksAwarded).toFixed(2)}</span>
                   </span>
                   <span className="flex items-center space-x-1">
                     <Clock className="h-4 w-4 text-blue-600" />
@@ -606,28 +675,36 @@ const ResultDetailsPage: React.FC = () => {
                   )}
 
                   {explanationState?.data && (
-                    <div className="mt-3 space-y-2 bg-gray-50 border border-gray-200 rounded-lg p-3">
+                    <div className="mt-3 space-y-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
                       <div>
-                        <h4 className="text-sm font-semibold text-gray-800 flex items-center space-x-2">
+                        <h4 className="text-sm font-semibold text-gray-800 flex items-center space-x-2 mb-2">
                           <Lightbulb className="h-4 w-4 text-yellow-500" />
                           <span>Overview</span>
                         </h4>
-                        <p className="text-sm text-gray-600">{explanationState.data.overview || 'No overview provided.'}</p>
+                        <div className="text-sm text-gray-700 leading-relaxed">
+                          <MathText text={explanationState.data.overview || 'No overview provided.'} block />
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="text-sm font-semibold text-gray-800">Why your answer?</h4>
-                        <p className="text-sm text-gray-600">{explanationState.data.why_user_answer || 'No explanation provided.'}</p>
+                      <div className="border-t border-blue-200 pt-3">
+                        <h4 className="text-sm font-semibold text-gray-800 mb-2">Why your answer?</h4>
+                        <div className="text-sm text-gray-700 leading-relaxed">
+                          <MathText text={explanationState.data.why_user_answer || 'No explanation provided.'} block />
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="text-sm font-semibold text-gray-800">Why correct answer?</h4>
-                        <p className="text-sm text-gray-600">{explanationState.data.why_correct_answer || 'No explanation provided.'}</p>
+                      <div className="border-t border-blue-200 pt-3">
+                        <h4 className="text-sm font-semibold text-gray-800 mb-2">Why correct answer?</h4>
+                        <div className="text-sm text-gray-700 leading-relaxed">
+                          <MathText text={explanationState.data.why_correct_answer || 'No explanation provided.'} block />
+                        </div>
                       </div>
                       {tips.length > 0 && (
-                        <div>
-                          <h4 className="text-sm font-semibold text-gray-800">Tips</h4>
-                          <ul className="list-disc pl-5 text-sm text-gray-600 space-y-1">
+                        <div className="border-t border-blue-200 pt-3">
+                          <h4 className="text-sm font-semibold text-gray-800 mb-2">Tips</h4>
+                          <ul className="list-disc pl-5 text-sm text-gray-700 space-y-2">
                             {tips.map((tip, tipIndex) => (
-                              <li key={tipIndex}>{tip}</li>
+                              <li key={tipIndex}>
+                                <MathText text={tip} />
+                              </li>
                             ))}
                           </ul>
                         </div>

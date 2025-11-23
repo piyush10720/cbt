@@ -4,12 +4,12 @@ import { uploadAPI, Question } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import LoadingSpinner from '@/components/LoadingSpinner'
+import ManualQuestionCreator from '@/components/ManualQuestionCreator'
 import {
   Upload,
   FileText,
   CheckCircle,
-  X,
-  Plus
+  X
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -30,6 +30,8 @@ const PDFUploadStep: React.FC<PDFUploadStepProps> = ({
     questionPaper?: File
     answerKey?: File
   }>({})
+  const [negativeMarkingScheme, setNegativeMarkingScheme] = useState<'none' | '1/4' | '1/3' | '1/2'>('1/4')
+  const [creationMethod, setCreationMethod] = useState<'pdf' | 'manual'>('pdf')
   const [dragActive, setDragActive] = useState(false)
 
   // Upload mutations
@@ -38,7 +40,30 @@ const PDFUploadStep: React.FC<PDFUploadStepProps> = ({
       uploadAPI.uploadCompleteExam(questionPaper, answerKey),
     {
       onSuccess: (response: any) => {
-        onQuestionsUpdate(response.data.data.questions)
+        // Apply negative marking scheme to all parsed questions
+        const parsedQuestions = response.data.data.questions.map((q: any) => {
+          const questionWithScheme = { ...q }
+          
+          if (negativeMarkingScheme !== 'none') {
+            questionWithScheme.negative_marking_scheme = negativeMarkingScheme
+            
+            // Calculate negative marks based on scheme
+            const fraction = negativeMarkingScheme === '1/4' ? 0.25
+              : negativeMarkingScheme === '1/3' ? 0.333
+              : negativeMarkingScheme === '1/2' ? 0.5
+              : 0
+            
+            questionWithScheme.negative_marks = -Math.abs((q.marks || 1) * fraction)
+          } else {
+            questionWithScheme.negative_marking_scheme = 'none'
+            questionWithScheme.negative_marks = 0
+          }
+          
+          return questionWithScheme
+        })
+        
+        onQuestionsUpdate(parsedQuestions)
+        
         if (response.data.data.pdfUrls?.questionPaper && onPdfUrlUpdate) {
           const cloudinaryUrl = response.data.data.pdfUrls.questionPaper
           console.log('Received Cloudinary PDF URL:', cloudinaryUrl)
@@ -47,7 +72,7 @@ const PDFUploadStep: React.FC<PDFUploadStepProps> = ({
           // Only use proxy if direct access fails
           onPdfUrlUpdate(cloudinaryUrl)
         }
-        toast.success(`Successfully parsed ${response.data.data.totalQuestions} questions!`)
+        toast.success(`Successfully parsed ${response.data.data.totalQuestions} questions with ${negativeMarkingScheme === 'none' ? 'no' : negativeMarkingScheme} negative marking!`)
       },
       onError: (error: any) => {
         const message = error.response?.data?.message || 'Failed to parse PDF files'
@@ -106,16 +131,8 @@ const PDFUploadStep: React.FC<PDFUploadStepProps> = ({
     })
   }
 
-  const addManualQuestion = () => {
-    const newQuestion: Question = {
-      id: `q${questions.length + 1}`,
-      type: 'mcq_single',
-      text: '',
-      options: ['', '', '', ''],
-      correct: [],
-      marks: 1,
-      negative_marks: 0
-    }
+  const handleAddManualQuestion = (newQuestion: Question) => {
+    console.log('Adding manual question:', newQuestion)
     onQuestionsUpdate([...questions, newQuestion])
   }
 
@@ -124,8 +141,39 @@ const PDFUploadStep: React.FC<PDFUploadStepProps> = ({
   return (
     <div className="space-y-6">
       {!hideUpload && (
-        <div className="space-y-4">
+        <>
+          {/* Method Selection */}
           <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-center gap-4">
+                <Button
+                  variant={creationMethod === 'pdf' ? 'default' : 'outline'}
+                  onClick={() => setCreationMethod('pdf')}
+                  className="flex-1 h-20"
+                >
+                  <div className="text-center">
+                    <Upload className="h-6 w-6 mx-auto mb-1" />
+                    <span className="font-medium">Upload PDF Files</span>
+                    <p className="text-xs opacity-80">Auto-extract questions from PDFs</p>
+                  </div>
+                </Button>
+                <Button
+                  variant={creationMethod === 'manual' ? 'default' : 'outline'}
+                  onClick={() => setCreationMethod('manual')}
+                  className="flex-1 h-20"
+                >
+                  <div className="text-center">
+                    <FileText className="h-6 w-6 mx-auto mb-1" />
+                    <span className="font-medium">Create Manually</span>
+                    <p className="text-xs opacity-80">Build questions from scratch</p>
+                  </div>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {creationMethod === 'pdf' && (
+            <Card>
             <CardHeader>
               <CardTitle>Upload Question Paper & Answer Key</CardTitle>
               <CardDescription>
@@ -247,6 +295,27 @@ const PDFUploadStep: React.FC<PDFUploadStepProps> = ({
                   </div>
                 </div>
 
+              {/* Negative Marking Scheme Selection */}
+              <div className="border-t pt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Negative Marking Scheme (for all questions)
+                </label>
+                <select
+                  value={negativeMarkingScheme}
+                  onChange={(e) => setNegativeMarkingScheme(e.target.value as any)}
+                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="none">No Negative Marking</option>
+                  <option value="1/4">1/4 of Marks (Standard)</option>
+                  <option value="1/3">1/3 of Marks</option>
+                  <option value="1/2">1/2 of Marks</option>
+                </select>
+                <p className="text-xs text-gray-500 mt-2">
+                  This scheme will be applied to all questions extracted from the PDF. 
+                  You can modify individual questions later in the review phase.
+                </p>
+              </div>
+
               <Button
                 onClick={handleUploadComplete}
                 disabled={!files.questionPaper || isLoading}
@@ -263,28 +332,13 @@ const PDFUploadStep: React.FC<PDFUploadStepProps> = ({
               </Button>
             </CardContent>
           </Card>
-        </div>
-      )}
+          )}
 
-      {/* Manual Question Creation */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Or Create Questions Manually</CardTitle>
-          <CardDescription>
-            Add questions one by one without uploading PDFs
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button
-            onClick={addManualQuestion}
-            variant="outline"
-            className="w-full"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Add Question Manually
-          </Button>
-        </CardContent>
-      </Card>
+          {creationMethod === 'manual' && (
+            <ManualQuestionCreator onAddQuestion={handleAddManualQuestion} />
+          )}
+        </>
+      )}
 
       {/* Status */}
       {questions.length > 0 && (

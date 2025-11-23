@@ -5,12 +5,15 @@ import { examAPI, resultAPI, Explanation } from '@/lib/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import LoadingSpinner from '@/components/LoadingSpinner'
+import ExamAnalytics from '@/components/ExamAnalytics'
 import { calculatePercentage, formatDate, getGradeFromPercentage, getPerformanceColor } from '@/lib/utils'
-import { AlertCircle, AlertTriangle, ArrowLeft, Award, BarChart3, CheckCircle2, CircleSlash, Clock, Flag, Lightbulb } from 'lucide-react'
+import { AlertCircle, AlertTriangle, ArrowLeft, Award, BarChart3, CheckCircle2, CircleSlash, Clock, Flag, Lightbulb, Check } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { getOptionLabel, getOptionText, hasOptionDiagram, getOptionDiagramUrl } from '@/utils/questionHelpers'
 import ImageModal from '@/components/ImageModal'
+import MathText from '@/components/MathText'
 
 type ExamDetailsResponse = {
   exam: {
@@ -226,17 +229,30 @@ const ExamDetailsPage: React.FC = () => {
         </div>
       </div>
 
-      {exam.description && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Description</CardTitle>
-            <CardDescription>Overview of the exam.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-gray-700 whitespace-pre-line">{exam.description}</p>
-          </CardContent>
-        </Card>
-      )}
+      {/* Tabs for Details and Analytics */}
+      <Tabs defaultValue="details" className="w-full">
+        <TabsList className="grid w-full grid-cols-2 max-w-md">
+          <TabsTrigger value="details">Exam Details</TabsTrigger>
+          {viewerIsCreator && (
+            <TabsTrigger value="analytics">
+              <BarChart3 className="h-4 w-4 mr-2" />
+              Analytics & Attempts
+            </TabsTrigger>
+          )}
+        </TabsList>
+
+        <TabsContent value="details" className="space-y-6 mt-6">
+          {exam.description && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Description</CardTitle>
+                <CardDescription>Overview of the exam.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-700 whitespace-pre-line">{exam.description}</p>
+              </CardContent>
+            </Card>
+          )}
 
       <div className="grid lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2">
@@ -363,7 +379,9 @@ const ExamDetailsPage: React.FC = () => {
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <p className="text-sm font-semibold text-gray-800">Question {index + 1}</p>
-                      <p className="text-sm text-gray-600 mt-1 whitespace-pre-line">{question.text}</p>
+                      <div className="text-sm text-gray-700 mt-2 leading-relaxed">
+                        <MathText text={question.text} block />
+                      </div>
                       {question.diagram?.present && question.diagram?.url && (
                         <div className="mt-2">
                           <img 
@@ -389,8 +407,8 @@ const ExamDetailsPage: React.FC = () => {
                   </div>
                   
                   {question.options && question.options.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-xs font-medium text-gray-700">Options:</p>
+                    <div className="mt-4 space-y-2">
+                      <p className="text-sm font-semibold text-gray-800 mb-3">Options:</p>
                       <div className="space-y-2">
                         {question.options.map((option, optionIndex) => {
                           const optionLabel = getOptionLabel(option)
@@ -398,16 +416,39 @@ const ExamDetailsPage: React.FC = () => {
                           const hasDiagram = hasOptionDiagram(option)
                           const diagramUrl = getOptionDiagramUrl(option)
                           
+                          // Check if this is a correct answer - need to handle both string and object format
+                          const correctAnswers = (question as any).correct || []
+                          const isCorrectAnswer = correctAnswers.some((ans: string) => {
+                            const normalizedAns = String(ans).replace(/[()\.:\-]/g, '').trim().toUpperCase()
+                            const normalizedLabel = optionLabel.replace(/[()\.:\-]/g, '').trim().toUpperCase()
+                            return normalizedAns === normalizedLabel
+                          })
+                          
                           return (
-                            <div key={optionIndex} className="flex items-start gap-2 text-sm text-gray-600">
-                              <span className="font-medium min-w-[20px]">{optionLabel}.</span>
+                            <div 
+                              key={optionIndex} 
+                              className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all ${
+                                isCorrectAnswer
+                                  ? 'bg-gray-100 border-gray-400'
+                                  : 'bg-white border-gray-200'
+                              }`}
+                            >
+                              {/* Icon indicator */}
+                              <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center font-bold ${
+                                isCorrectAnswer
+                                  ? 'bg-gray-400 text-white'
+                                  : 'bg-blue-500 text-white'
+                              }`}>
+                                <span className="text-base">{optionLabel}</span>
+                              </div>
+                              
                               <div className="flex-1">
-                                <span>{optionText}</span>
+                                <MathText text={optionText} className="text-sm text-gray-800" />
                                 {hasDiagram && diagramUrl && (
                                   <img 
                                     src={diagramUrl} 
                                     alt={`Option ${optionLabel}`}
-                                    className="mt-1 max-w-full h-auto max-h-32 rounded border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity"
+                                    className="mt-2 max-w-full h-auto max-h-32 rounded border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity"
                                     onClick={() => setModalImage({ 
                                       src: diagramUrl, 
                                       alt: `Option ${optionLabel} - Diagram` 
@@ -415,9 +456,31 @@ const ExamDetailsPage: React.FC = () => {
                                   />
                                 )}
                               </div>
+
+                              {/* Status icon on right - checkmark for correct answers */}
+                              {isCorrectAnswer && (
+                                <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-gray-500">
+                                  <CheckCircle2 className="h-5 w-5 text-white" />
+                                </div>
+                              )}
                             </div>
                           )
                         })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Numeric/Descriptive Questions - Show correct answer */}
+                  {(question.type === 'numeric' || question.type === 'descriptive') && (question as any).correct && (
+                    <div className="mt-3">
+                      <div className="p-3 rounded-lg border-2 bg-blue-50 border-blue-300">
+                        <p className="text-xs font-medium text-gray-600 mb-1 uppercase">Correct Answer</p>
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="h-5 w-5 text-blue-600 flex-shrink-0" />
+                          <p className="text-sm font-medium text-gray-900">
+                            {((question as any).correct || []).join(', ')}
+                          </p>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -433,36 +496,15 @@ const ExamDetailsPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {exam.statistics && viewerIsCreator && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Performance Snapshot</CardTitle>
-            <CardDescription>Visible only to exam creators.</CardDescription>
-          </CardHeader>
-          <CardContent className="grid sm:grid-cols-2 gap-4 text-sm text-gray-600">
-            <div>
-              <p className="font-semibold text-gray-800">Total Attempts</p>
-              <p>{exam.statistics.totalAttempts}</p>
-            </div>
-            <div>
-              <p className="font-semibold text-gray-800">Average Score</p>
-              <p>{exam.statistics.averageScore}</p>
-            </div>
-            <div>
-              <p className="font-semibold text-gray-800">Highest Score</p>
-              <p>{exam.statistics.highestScore}</p>
-            </div>
-            <div>
-              <p className="font-semibold text-gray-800">Lowest Score</p>
-              <p>{exam.statistics.lowestScore}</p>
-            </div>
-            <div className="sm:col-span-2">
-              <p className="font-semibold text-gray-800 mb-1">Completion Rate</p>
-              <p>{exam.statistics.completionRate}%</p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+        </TabsContent>
+
+        {/* Analytics Tab - Only for Creators */}
+        {viewerIsCreator && (
+          <TabsContent value="analytics" className="mt-6">
+            <ExamAnalytics examId={exam.id} />
+          </TabsContent>
+        )}
+      </Tabs>
 
       <ImageModal 
         src={modalImage?.src || ''} 

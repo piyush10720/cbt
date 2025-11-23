@@ -14,6 +14,7 @@ import {
   AlertCircle
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { validateAllQuestions } from '@/utils/questionValidation'
 
 interface ExamWizardProps {
   onComplete: (examData: any) => void
@@ -21,6 +22,7 @@ interface ExamWizardProps {
   initialQuestions?: Question[]
   initialExamSettings?: any
   mode?: 'create' | 'edit'
+  initialPdfUrl?: string
 }
 
 const ExamWizard: React.FC<ExamWizardProps> = ({
@@ -28,11 +30,12 @@ const ExamWizard: React.FC<ExamWizardProps> = ({
   loading = false,
   initialQuestions,
   initialExamSettings,
-  mode = 'create'
+  mode = 'create',
+  initialPdfUrl
 }) => {
   const [currentStep, setCurrentStep] = useState(mode === 'edit' ? 1 : 0)
   const [questions, setQuestions] = useState<Question[]>(initialQuestions ?? [])
-  const [pdfUrl, setPdfUrl] = useState<string>('')
+  const [pdfUrl, setPdfUrl] = useState<string>(initialPdfUrl || '')
   const [examSettings, setExamSettings] = useState(
     initialExamSettings ?? {
       title: '',
@@ -97,11 +100,14 @@ const ExamWizard: React.FC<ExamWizardProps> = ({
     }
   ]
 
-  const handleQuestionsUpdate = (newQuestions: Question[]) => {
-    console.log('Exam Wizard - Received questions:', newQuestions.length)
+  const handleQuestionsUpdate = (newQuestions: Question[] | ((prev: Question[]) => Question[])) => {
+    // Support functional updates
+    const questionsToSet = typeof newQuestions === 'function' 
+      ? newQuestions(questions) 
+      : newQuestions
     
     // Normalize questions to ensure numeric and descriptive types have correct array initialized
-    const normalizedQuestions = newQuestions.map((q, idx) => {
+    const normalizedQuestions = questionsToSet.map((q) => {
       const normalized = { ...q }
       
       // Fix numeric and descriptive correct arrays
@@ -116,16 +122,6 @@ const ExamWizard: React.FC<ExamWizardProps> = ({
           url: (q as any).imageUrl,
           description: 'Question diagram'
         }
-      }
-      
-      // Debug diagram data for questions with diagrams
-      if (q.diagram?.present) {
-        console.log(`Question ${idx + 1} has diagram:`, {
-          present: q.diagram.present,
-          url: q.diagram.url,
-          urlLength: q.diagram.url?.length,
-          description: q.diagram.description
-        })
       }
       
       return normalized
@@ -165,6 +161,13 @@ const ExamWizard: React.FC<ExamWizardProps> = ({
       return
     }
 
+    // Validate all questions
+    const validation = validateAllQuestions(questions)
+    if (!validation.valid) {
+      toast.error(`Cannot create exam: ${validation.errors.length} validation error${validation.errors.length !== 1 ? 's' : ''} found. Please fix them in the Review Questions phase.`)
+      return
+    }
+
     // Calculate total marks
     const totalMarks = questions.reduce((sum, q) => sum + (q.marks || 1), 0)
 
@@ -174,6 +177,12 @@ const ExamWizard: React.FC<ExamWizardProps> = ({
       settings: {
         ...examSettings.settings,
         totalMarks
+      },
+      originalFiles: {
+        questionPaper: {
+          url: pdfUrl,
+          uploadedAt: new Date()
+        }
       }
     }
 
@@ -206,7 +215,6 @@ const ExamWizard: React.FC<ExamWizardProps> = ({
   const CurrentStepComponent = steps[currentStep].component
 
   const visibleSteps = mode === 'edit' ? steps.slice(1) : steps
-  const activeStep = mode === 'edit' ? currentStep - 1 : currentStep
 
   return (
     <div className="space-y-6">
@@ -278,16 +286,31 @@ const ExamWizard: React.FC<ExamWizardProps> = ({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <CurrentStepComponent
-            questions={questions}
-            onQuestionsUpdate={handleQuestionsUpdate}
-            onPdfUrlUpdate={handlePdfUrlUpdate}
-            examSettings={examSettings}
-            onSettingsUpdate={handleSettingsUpdate}
-            mode={mode}
-            hideUpload={mode === 'edit'}
-            pdfUrl={pdfUrl}
-          />
+          {currentStep === 0 ? (
+            <CurrentStepComponent
+              {...{
+                questions,
+                onQuestionsUpdate: handleQuestionsUpdate,
+                onPdfUrlUpdate: handlePdfUrlUpdate,
+                hideUpload: mode === 'edit'
+              } as any}
+            />
+          ) : currentStep === 1 ? (
+            <CurrentStepComponent
+              {...{
+                questions,
+                onQuestionsUpdate: handleQuestionsUpdate,
+                pdfUrl
+              } as any}
+            />
+          ) : (
+            <CurrentStepComponent
+              {...{
+                examSettings,
+                onSettingsUpdate: handleSettingsUpdate
+              } as any}
+            />
+          )}
         </CardContent>
       </Card>
 

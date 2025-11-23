@@ -58,3 +58,29 @@ export const findOptionByLabel = (
 ): string | QuestionOption | undefined => {
   return options.find(opt => getOptionLabel(opt) === label)
 }
+
+/**
+ * Normalize answer for comparison (case-insensitive, trimmed)
+ */
+export const normalizeAnswer = (answer: string): string => {
+  return String(answer).trim().toUpperCase()
+}
+
+/**
+ * Check if an answer matches any correct answer (normalized comparison)
+ */
+export const isAnswerCorrect = (userAnswer: string | string[], correctAnswers: string[]): boolean => {
+  if (Array.isArray(userAnswer)) {
+    // Multi-select (MSQ)
+    const normalizedUser = userAnswer.map(normalizeAnswer)
+    const normalizedCorrect = correctAnswers.map(normalizeAnswer)
+    return normalizedUser.length === normalizedCorrect.length &&
+           normalizedUser.every(ans => normalizedCorrect.includes(ans)) &&
+           normalizedCorrect.every(ans => normalizedUser.includes(ans))
+  } else {
+    // Single select (MCQ/True-False)
+    const normalizedUser = normalizeAnswer(userAnswer)
+    const normalizedCorrect = correctAnswers.map(normalizeAnswer)
+    return normalizedCorrect.includes(normalizedUser)
+  }
+}

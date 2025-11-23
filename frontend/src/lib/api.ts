@@ -5,7 +5,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 // Create axios instance
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: Number(import.meta.env.VITE_API_TIMEOUT_MS ?? 1200000), // 20 minutes default
+  timeout: Number(import.meta.env.VITE_API_TIMEOUT_MS ?? 12000000), // 20 minutes default
   headers: {
     'Content-Type': 'application/json',
   },
@@ -85,6 +85,7 @@ export interface QuestionOption {
   diagram?: QuestionDiagram
 }
 
+// Question interface with support for negative marking schemes
 export interface Question {
   _id?: string
   id: string
@@ -94,6 +95,7 @@ export interface Question {
   correct: string[]
   marks: number
   negative_marks: number
+  negative_marking_scheme?: '1/4' | '1/3' | '1/2' | 'custom' | 'none' // Fraction of positive marks
   difficulty?: 'easy' | 'medium' | 'hard'
   subject?: string
   topic?: string
@@ -365,6 +367,49 @@ export const uploadAPI = {
     api.get('/upload/test-gemini'),
 }
 
+// Image Upload API
+export const imageUploadAPI = {
+  uploadDiagram: (
+    file: File,
+    metadata: {
+      type: 'question' | 'option'
+      questionId: string
+      optionLabel?: string
+    }
+  ): Promise<AxiosResponse<{
+    data: { url: string; type: string; questionId: string; optionLabel?: string }
+    message: string
+  }>> => {
+    const formData = new FormData()
+    formData.append('image', file)
+    formData.append('type', metadata.type)
+    formData.append('questionId', metadata.questionId)
+    if (metadata.optionLabel) {
+      formData.append('optionLabel', metadata.optionLabel)
+    }
+    return api.post('/image-upload/diagram', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
+
+  uploadDiagramBase64: (
+    base64Data: string,
+    metadata: {
+      type: 'question' | 'option'
+      questionId: string
+      optionLabel?: string
+    }
+  ): Promise<AxiosResponse<{
+    data: { url: string; type: string; questionId: string; optionLabel?: string }
+    message: string
+  }>> => {
+    return api.post('/image-upload/diagram-base64', {
+      base64Data,
+      ...metadata
+    })
+  },
+}
+
 // Result API
 export const resultAPI = {
   submitAnswer: (
@@ -411,6 +456,42 @@ export const resultAPI = {
     sortOrder?: string
   }): Promise<AxiosResponse<{ results: Result[]; pagination: any }>> =>
     api.get('/result', { params }),
+
+  getExamResults: (
+    examId: string,
+    params?: {
+      page?: number
+      limit?: number
+      status?: string
+      sortBy?: string
+      sortOrder?: string
+    }
+  ): Promise<AxiosResponse<{ 
+    results: Array<{
+      id: string
+      user: User
+      attemptNumber: number
+      score: number
+      totalMarks: number
+      percentage: number
+      status: string
+      timing: any
+      analytics: any
+      cheatingFlags?: any[]
+      createdAt: string
+    }>
+    pagination: any
+    aggregateAnalytics: {
+      totalAttempts: number
+      completedAttempts: number
+      averageScore: string
+      highestScore: number
+      lowestScore: number
+      examTitle: string
+      totalMarks: number
+    }
+  }>> =>
+    api.get(`/result/exam/${examId}/attempts`, { params }),
 
   addCheatingFlag: (
     resultId: string,

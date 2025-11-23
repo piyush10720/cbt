@@ -58,6 +58,7 @@ export function getGradeFromPercentage(percentage: number): string {
   if (percentage >= 50) return 'C+'
   if (percentage >= 40) return 'C'
   if (percentage >= 30) return 'D'
+  if (percentage < 0) return 'F (Negative)'
   return 'F'
 }
 
@@ -65,6 +66,7 @@ export function getPerformanceColor(percentage: number): string {
   if (percentage >= 80) return 'text-green-600'
   if (percentage >= 60) return 'text-blue-600'
   if (percentage >= 40) return 'text-yellow-600'
+  if (percentage < 0) return 'text-red-700 font-bold'
   return 'text-red-600'
 }
 

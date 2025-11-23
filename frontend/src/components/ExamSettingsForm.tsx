@@ -1,7 +1,6 @@
 import React from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
 
 interface ExamSettingsFormProps {
   examSettings: any
@@ -88,18 +87,7 @@ const ExamSettingsForm: React.FC<ExamSettingsFormProps> = ({
               min="1"
             />
           </div>
-          
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  checked={examSettings.settings.negativeMarking}
-                  onChange={(e) => handleSettingsChange('negativeMarking', e.target.checked)}
-                />
-                <span className="text-sm">Negative Marking</span>
-              </label>
-            </div>
             <div>
               <label className="flex items-center space-x-2">
                 <input

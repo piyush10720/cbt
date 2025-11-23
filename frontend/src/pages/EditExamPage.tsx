@@ -17,6 +17,11 @@ interface LoadedExam {
   schedule: any
   access: any
   questions: Question[]
+  originalFiles?: {
+    questionPaper?: {
+      url?: string
+    }
+  }
 }
 
 const formatDateTimeLocal = (value?: string | Date) => {
@@ -65,6 +70,7 @@ const EditExamPage: React.FC = () => {
             endDate: formatDateTimeLocal(exam.schedule?.endDate)
           },
           access: exam.access,
+          originalFiles: exam.originalFiles,
           questions: clonedQuestions
         })
       },
@@ -145,6 +151,7 @@ const EditExamPage: React.FC = () => {
           access: initialData.access
         }}
         mode="edit"
+        initialPdfUrl={initialData.originalFiles?.questionPaper?.url}
       />
     </div>
   )

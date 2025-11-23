@@ -1,8 +1,11 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo, memo } from 'react'
 import { Question } from '@/lib/api'
+// @ts-ignore - imageUploadAPI export exists but TypeScript cache hasn't updated
+import { imageUploadAPI } from '@/lib/api'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import LoadingSpinner from '@/components/LoadingSpinner'
 import {
   ChevronDown,
   ChevronUp,
@@ -12,6 +15,7 @@ import {
   ChevronDown as MoveDown,
   CheckCircle,
   AlertCircle,
+  AlertTriangle,
   Wand2,
   Upload as UploadIcon,
   X
@@ -30,11 +34,18 @@ const QUESTION_TYPES: Array<{ label: string; value: Question['type'] }> = [
   { label: 'Descriptive', value: 'descriptive' }
 ]
 
+interface ValidationError {
+  field: string
+  message: string
+}
+
 interface CollapsibleQuestionCardProps {
   question: Question
   index: number
   totalQuestions: number
   isExpanded: boolean
+  isFocused?: boolean
+  validationErrors?: ValidationError[]
   onToggleExpand: () => void
   onEdit: (questionId: string, updates: Partial<Question>) => void
   onDuplicate: () => void
@@ -44,11 +55,13 @@ interface CollapsibleQuestionCardProps {
   onFocus: () => void
 }
 
-const CollapsibleQuestionCard: React.FC<CollapsibleQuestionCardProps> = ({
+const CollapsibleQuestionCard: React.FC<CollapsibleQuestionCardProps> = memo(({
   question,
   index,
   totalQuestions,
   isExpanded,
+  isFocused = false,
+  validationErrors = [],
   onToggleExpand,
   onEdit,
   onDuplicate,
@@ -58,20 +71,16 @@ const CollapsibleQuestionCard: React.FC<CollapsibleQuestionCardProps> = ({
   onFocus
 }) => {
   const [modalImage, setModalImage] = useState<{ src: string; alt: string } | null>(null)
+  const [uploadingDiagram, setUploadingDiagram] = useState(false)
+  const [uploadingOptionDiagram, setUploadingOptionDiagram] = useState<number | null>(null)
 
   const isComplete = question.text.trim().length > 0 && question.correct && question.correct.length > 0
-
-  // Debug diagram data
-  React.useEffect(() => {
-    if (question.diagram && isExpanded) {
-      console.log(`Question ${index + 1} diagram data:`, {
-        present: question.diagram.present,
-        url: question.diagram.url,
-        hasUrl: !!question.diagram.url,
-        description: question.diagram.description
-      })
-    }
-  }, [question.diagram, isExpanded, index])
+  const hasErrors = validationErrors.length > 0
+  
+  // Count options with diagrams
+  const optionDiagramCount = useMemo(() => {
+    return question.options.filter(opt => hasOptionDiagram(opt)).length
+  }, [question.options])
 
   const handleOptionChange = (optionIndex: number, value: string) => {
     const options = [...question.options]
@@ -164,28 +173,31 @@ const CollapsibleQuestionCard: React.FC<CollapsibleQuestionCardProps> = ({
       return
     }
 
+    setUploadingDiagram(true)
+
     try {
-      // Convert image to base64 data URL for preview
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        const dataUrl = event.target?.result as string
-        onEdit(question.id, {
-          diagram: {
-            present: true,
-            url: dataUrl,
-            description: 'User uploaded diagram',
-            uploaded_at: new Date().toISOString()
-          }
-        })
-        toast.success('Diagram uploaded successfully')
-      }
-      reader.onerror = () => {
-        toast.error('Failed to read image file')
-      }
-      reader.readAsDataURL(file)
+      // Upload to Cloudinary via backend
+      const response = await imageUploadAPI.uploadDiagram(file, {
+        type: 'question',
+        questionId: question.id
+      })
+
+      const cloudinaryUrl = response.data.data.url
+
+      onEdit(question.id, {
+        diagram: {
+          present: true,
+          url: cloudinaryUrl,
+          description: 'User uploaded diagram',
+          uploaded_at: new Date().toISOString()
+        }
+      })
+      toast.success('Diagram uploaded to cloud storage')
     } catch (error) {
       console.error('Diagram upload error:', error)
       toast.error('Failed to upload diagram')
+    } finally {
+      setUploadingDiagram(false)
     }
   }
 
@@ -200,10 +212,86 @@ const CollapsibleQuestionCard: React.FC<CollapsibleQuestionCardProps> = ({
     toast.success('Diagram removed')
   }
 
+  const handleOptionDiagramUpload = async (optionIndex: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file')
+      return
+    }
+
+    const currentOption = question.options[optionIndex]
+    const optionLabel = getOptionLabel(currentOption)
+    
+    setUploadingOptionDiagram(optionIndex)
+
+    try {
+      // Upload to Cloudinary via backend
+      const response = await imageUploadAPI.uploadDiagram(file, {
+        type: 'option',
+        questionId: question.id,
+        optionLabel: optionLabel
+      })
+
+      const cloudinaryUrl = response.data.data.url
+      
+      // Update the option to include diagram
+      const updatedOptions = [...question.options]
+      const optionText = getOptionText(currentOption)
+      
+      updatedOptions[optionIndex] = {
+        label: optionLabel,
+        text: optionText,
+        diagram: {
+          present: true,
+          url: cloudinaryUrl,
+          description: `Option ${optionLabel} diagram`,
+          uploaded_at: new Date().toISOString()
+        }
+      }
+      
+      onEdit(question.id, { options: updatedOptions })
+      toast.success(`Diagram uploaded to cloud storage`)
+    } catch (error) {
+      console.error('Option diagram upload error:', error)
+      toast.error('Failed to upload diagram')
+    } finally {
+      setUploadingOptionDiagram(null)
+    }
+  }
+
+  const handleRemoveOptionDiagram = (optionIndex: number) => {
+    const updatedOptions = [...question.options]
+    const currentOption = updatedOptions[optionIndex]
+    const optionLabel = getOptionLabel(currentOption)
+    const optionText = getOptionText(currentOption)
+    
+    // Remove diagram but keep option text
+    updatedOptions[optionIndex] = typeof currentOption === 'string' 
+      ? currentOption 
+      : {
+          label: optionLabel,
+          text: optionText,
+          diagram: {
+            present: false,
+            url: undefined,
+            description: undefined
+          }
+        }
+    
+    onEdit(question.id, { options: updatedOptions })
+    toast.success(`Diagram removed from option ${optionLabel}`)
+  }
+
   const questionPreview = question.text.substring(0, 100) + (question.text.length > 100 ? '...' : '')
 
   return (
-    <Card className={`mb-4 ${isExpanded ? 'ring-2 ring-blue-500' : ''}`}>
+    <Card className={`mb-4 ${
+      hasErrors ? 'ring-2 ring-red-500 border-red-300' : 
+      isExpanded && isFocused ? 'ring-2 ring-blue-600 shadow-lg' : 
+      isExpanded ? 'ring-1 ring-blue-300' : ''
+    }`}>
       <CardHeader className="py-3 px-4 cursor-pointer hover:bg-gray-50" onClick={onToggleExpand}>
         <div className="flex items-start justify-between">
           <div className="flex items-start gap-3 flex-1">
@@ -225,12 +313,23 @@ const CollapsibleQuestionCard: React.FC<CollapsibleQuestionCardProps> = ({
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-xs text-gray-500">
                       {QUESTION_TYPES.find((t) => t.value === question.type)?.label} • {question.marks} marks
+                      {(question as any).negative_marking_scheme && (question as any).negative_marking_scheme !== 'none' && (
+                        <span className="text-red-600 ml-1">
+                          (−{Math.abs(question.negative_marks).toFixed(2)})
+                        </span>
+                      )}
                     </span>
                     {question.sourcePageNumber && (
                       <span className="text-xs text-blue-600">• Page {question.sourcePageNumber}</span>
                     )}
                     {question.diagram?.present && (
-                      <span className="text-xs text-purple-600">• Has diagram</span>
+                      <span className="text-xs text-purple-600">• Q diagram</span>
+                    )}
+                    {optionDiagramCount > 0 && (
+                      <span className="text-xs text-purple-600">• {optionDiagramCount} opt diagram{optionDiagramCount > 1 ? 's' : ''}</span>
+                    )}
+                    {hasErrors && (
+                      <span className="text-xs text-red-600 font-medium">• {validationErrors.length} error{validationErrors.length !== 1 ? 's' : ''}</span>
                     )}
                   </div>
                 </div>
@@ -238,7 +337,11 @@ const CollapsibleQuestionCard: React.FC<CollapsibleQuestionCardProps> = ({
             </div>
 
             <div className="flex items-center gap-1">
-              {isComplete ? (
+              {hasErrors ? (
+                <div title={`${validationErrors.length} validation error${validationErrors.length !== 1 ? 's' : ''}`}>
+                  <AlertTriangle className="h-5 w-5 text-red-600" />
+                </div>
+              ) : isComplete ? (
                 <CheckCircle className="h-4 w-4 text-green-600" />
               ) : (
                 <AlertCircle className="h-4 w-4 text-yellow-600" />
@@ -250,6 +353,26 @@ const CollapsibleQuestionCard: React.FC<CollapsibleQuestionCardProps> = ({
 
       {isExpanded && (
         <CardContent className="px-4 py-4 space-y-4" onClick={onFocus}>
+          {/* Validation Errors */}
+          {hasErrors && (
+            <div className="bg-red-50 border-2 border-red-300 rounded-lg p-3">
+              <p className="text-sm font-semibold text-red-800 mb-2 flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5" />
+                {validationErrors.length} Validation Error{validationErrors.length !== 1 ? 's' : ''}
+              </p>
+              <ul className="text-xs text-red-700 space-y-1 list-disc list-inside">
+                {validationErrors.map((error, idx) => (
+                  <li key={idx}>
+                    <span className="font-medium">{error.field}:</span> {error.message.replace(`Question ${index + 1}: `, '')}
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs text-red-600 mt-2 font-medium">
+                ⚠️ Fix these issues before creating the exam
+              </p>
+            </div>
+          )}
+
           {/* Action Buttons */}
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); onDuplicate(); }}>
@@ -331,7 +454,40 @@ const CollapsibleQuestionCard: React.FC<CollapsibleQuestionCardProps> = ({
                   <p className="text-xs text-gray-500">
                     {question.diagram.description || 'Diagram from PDF'} <span className="text-blue-600">(Click to enlarge)</span>
                   </p>
-                  <Button variant="outline" size="sm" asChild>
+                  {uploadingDiagram ? (
+                    <Button variant="outline" size="sm" disabled>
+                      <LoadingSpinner size="sm" />
+                      <span className="ml-1">Uploading...</span>
+                    </Button>
+                  ) : (
+                    <Button variant="outline" size="sm" asChild>
+                      <label className="cursor-pointer">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleDiagramUpload}
+                          className="hidden"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                        <UploadIcon className="h-3 w-3 mr-1" />
+                        Replace
+                      </label>
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ) : question.diagram?.present && !question.diagram?.url ? (
+              <div className="mt-2 space-y-2">
+                <div className="p-2 border border-yellow-200 bg-yellow-50 rounded text-xs text-yellow-700">
+                  Diagram detected but URL missing. Upload a diagram manually.
+                </div>
+                {uploadingDiagram ? (
+                  <Button variant="outline" size="sm" disabled className="w-full">
+                    <LoadingSpinner size="sm" />
+                    <span className="ml-2">Uploading to cloud...</span>
+                  </Button>
+                ) : (
+                  <Button variant="outline" size="sm" asChild className="w-full">
                     <label className="cursor-pointer">
                       <input
                         type="file"
@@ -340,46 +496,34 @@ const CollapsibleQuestionCard: React.FC<CollapsibleQuestionCardProps> = ({
                         className="hidden"
                         onClick={(e) => e.stopPropagation()}
                       />
-                      <UploadIcon className="h-3 w-3 mr-1" />
-                      Replace
+                      <UploadIcon className="h-4 w-4 mr-2" />
+                      Upload Diagram
                     </label>
                   </Button>
-                </div>
-              </div>
-            ) : question.diagram?.present && !question.diagram?.url ? (
-              <div className="mt-2 space-y-2">
-                <div className="p-2 border border-yellow-200 bg-yellow-50 rounded text-xs text-yellow-700">
-                  Diagram detected but URL missing. Upload a diagram manually.
-                </div>
-                <Button variant="outline" size="sm" asChild className="w-full">
-                  <label className="cursor-pointer">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleDiagramUpload}
-                      className="hidden"
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                    <UploadIcon className="h-4 w-4 mr-2" />
-                    Upload Diagram
-                  </label>
-                </Button>
+                )}
               </div>
             ) : (
               <div className="mt-2">
-                <Button variant="outline" size="sm" asChild className="w-full">
-                  <label className="cursor-pointer">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleDiagramUpload}
-                      className="hidden"
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                    <UploadIcon className="h-4 w-4 mr-2" />
-                    Add Diagram
-                  </label>
-                </Button>
+                {uploadingDiagram ? (
+                  <Button variant="outline" size="sm" disabled className="w-full">
+                    <LoadingSpinner size="sm" />
+                    <span className="ml-2">Uploading...</span>
+                  </Button>
+                ) : (
+                  <Button variant="outline" size="sm" asChild className="w-full">
+                    <label className="cursor-pointer">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleDiagramUpload}
+                        className="hidden"
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                      <UploadIcon className="h-4 w-4 mr-2" />
+                      Add Diagram
+                    </label>
+                  </Button>
+                )}
               </div>
             )}
           </div>
@@ -407,19 +551,48 @@ const CollapsibleQuestionCard: React.FC<CollapsibleQuestionCardProps> = ({
                 <Input
                   type="number"
                   min="0"
+                  step="0.5"
                   value={question.marks ?? 1}
-                  onChange={(e) => onEdit(question.id, { marks: Number(e.target.value) })}
+                  onChange={(e) => {
+                    const newMarks = Number(e.target.value)
+                    const updates: any = { marks: newMarks }
+                    
+                    // Recalculate negative marks if using a scheme
+                    const scheme = (question as any).negative_marking_scheme
+                    if (scheme && scheme !== 'none' && scheme !== 'custom') {
+                      const fraction = scheme === '1/4' ? 0.25 
+                        : scheme === '1/3' ? 0.333
+                        : scheme === '1/2' ? 0.5
+                        : 0
+                      updates.negative_marks = -Math.abs(newMarks * fraction)
+                    }
+                    
+                    onEdit(question.id, updates)
+                  }}
                   onClick={(e) => e.stopPropagation()}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Negative Marks</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Negative Marks
+                  {(question as any).negative_marking_scheme && (question as any).negative_marking_scheme !== 'none' && (
+                    <span className="text-xs text-gray-500 ml-1">
+                      ({(question as any).negative_marking_scheme === 'custom' ? 'Custom' : (question as any).negative_marking_scheme})
+                    </span>
+                  )}
+                </label>
                 <Input
                   type="number"
                   value={question.negative_marks ?? 0}
                   onChange={(e) => onEdit(question.id, { negative_marks: Number(e.target.value) })}
                   onClick={(e) => e.stopPropagation()}
+                  className="text-red-600 font-medium"
                 />
+                {(question as any).negative_marking_scheme && (question as any).negative_marking_scheme !== 'none' && (question as any).negative_marking_scheme !== 'custom' && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Auto-calculated: {(question as any).negative_marking_scheme} of {Number(question.marks).toFixed(2)} marks = {Number(question.negative_marks).toFixed(2)}
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -428,7 +601,12 @@ const CollapsibleQuestionCard: React.FC<CollapsibleQuestionCardProps> = ({
           {(question.type === 'mcq_single' || question.type === 'mcq_multi') && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-gray-700">Options</label>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Options</label>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Click <UploadIcon className="h-3 w-3 inline mx-0.5" /> icon to add/replace diagram for each option
+                  </p>
+                </div>
                 <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); handleAddOption(); }}>
                   Add Option
                 </Button>
@@ -462,21 +640,54 @@ const CollapsibleQuestionCard: React.FC<CollapsibleQuestionCardProps> = ({
                             onClick={(e) => e.stopPropagation()}
                           />
                         )}
-                        <div className="flex-1">
-                          <Input
-                            value={optionText}
-                            onChange={(e) => handleOptionChange(idx, e.target.value)}
-                            placeholder={`Option ${optionLabel || idx + 1} (supports LaTeX)`}
-                            onClick={(e) => e.stopPropagation()}
-                            className="font-mono"
-                          />
+                        <div className="flex-1 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <Input
+                              value={optionText}
+                              onChange={(e) => handleOptionChange(idx, e.target.value)}
+                              placeholder={`Option ${optionLabel || idx + 1} (supports LaTeX)`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="font-mono flex-1"
+                            />
+                            {/* Diagram Upload Button */}
+                            {uploadingOptionDiagram === idx ? (
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                disabled
+                                title="Uploading..."
+                              >
+                                <LoadingSpinner size="sm" />
+                              </Button>
+                            ) : (
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                asChild
+                                title={hasDiagram ? "Replace diagram" : "Add diagram"}
+                              >
+                                <label className="cursor-pointer px-2">
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={(e) => handleOptionDiagramUpload(idx, e)}
+                                    className="hidden"
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                  <UploadIcon className="h-4 w-4 text-gray-500 hover:text-blue-500" />
+                                </label>
+                              </Button>
+                            )}
+                          </div>
+                          
                           {optionText && (optionText.includes('$') || optionText.includes('\\')) && (
-                            <div className="mt-1 p-2 border border-gray-200 rounded bg-gray-50 text-sm">
+                            <div className="p-2 border border-gray-200 rounded bg-gray-50 text-sm">
                               <MathText text={optionText} />
                             </div>
                           )}
+                          
                           {hasDiagram && diagramUrl ? (
-                            <div className="mt-2">
+                            <div className="relative group">
                               <img
                                 src={diagramUrl}
                                 alt={`Option ${optionLabel} diagram`}
@@ -493,12 +704,24 @@ const CollapsibleQuestionCard: React.FC<CollapsibleQuestionCardProps> = ({
                                   e.currentTarget.style.display = 'none'
                                 }}
                               />
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                className="absolute top-2 right-2 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={(e) => { 
+                                  e.stopPropagation(); 
+                                  handleRemoveOptionDiagram(idx); 
+                                }}
+                                title="Remove diagram"
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
                               <p className="text-xs text-gray-500 mt-1">
-                                Diagram from PDF <span className="text-blue-600">(Click to enlarge)</span>
+                                Diagram <span className="text-blue-600">(Click to enlarge)</span>
                               </p>
                             </div>
                           ) : hasDiagram && !diagramUrl ? (
-                            <div className="mt-2 p-1 border border-yellow-200 bg-yellow-50 rounded text-xs text-yellow-700">
+                            <div className="p-1 border border-yellow-200 bg-yellow-50 rounded text-xs text-yellow-700">
                               Diagram detected but not loaded
                             </div>
                           ) : null}
@@ -546,13 +769,17 @@ const CollapsibleQuestionCard: React.FC<CollapsibleQuestionCardProps> = ({
             <div className="space-y-2">
               <label className="block text-sm font-medium text-gray-700">Correct Numeric Answer</label>
               <Input
-                type="number"
-                step="any"
+                type="text"
                 value={question.correct && question.correct.length > 0 ? question.correct[0] : ''}
                 onChange={(e) => onEdit(question.id, { correct: [e.target.value] })}
                 onClick={(e) => e.stopPropagation()}
-                placeholder="Enter the correct numeric answer"
+                placeholder="Single value (e.g., 42.5) or range (e.g., 41.5-42.5)"
               />
+              {question.correct && question.correct[0] && question.correct[0].includes('-') && (
+                <p className="text-xs text-green-600 bg-green-50 p-2 rounded border border-green-200">
+                  Range answer: Any value between {question.correct[0].split('-')[0]} and {question.correct[0].split('-')[1]} will be accepted
+                </p>
+              )}
             </div>
           )}
 
@@ -580,7 +807,18 @@ const CollapsibleQuestionCard: React.FC<CollapsibleQuestionCardProps> = ({
       />
     </Card>
   )
-}
+}, (prevProps, nextProps) => {
+  // Custom comparison - only re-render if these props change
+  // Return true if props are equal (skip re-render), false if different (re-render)
+  return (
+    prevProps.question === nextProps.question &&
+    prevProps.isExpanded === nextProps.isExpanded &&
+    prevProps.isFocused === nextProps.isFocused &&
+    prevProps.index === nextProps.index &&
+    prevProps.validationErrors === nextProps.validationErrors
+  )
+})
 
 export default CollapsibleQuestionCard
+
 

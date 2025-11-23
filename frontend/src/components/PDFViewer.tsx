@@ -18,12 +18,16 @@ import 'react-pdf/dist/Page/TextLayer.css'
 const PDFJS_VERSION = '3.11.174';
 
 // Use CDN worker that matches the installed pdfjs-dist version
-pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${PDFJS_VERSION}/build/pdf.worker.min.js`;
+if (typeof window !== 'undefined') {
+  pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${PDFJS_VERSION}/build/pdf.worker.min.js`;
+}
 
-interface PDFViewerProps {
+// PDFViewer component props interface
+export interface PDFViewerProps {
   pdfUrl: string
   currentPage?: number
-  pagesToShow?: number[] // Array of page numbers to display
+  pagesToShow?: number[] // Array of page numbers to display in scroll mode
+  focusPage?: number | null // Page to focus/highlight (most recently expanded question)
   onPageChange?: (page: number) => void
   isMinimized?: boolean
   onToggleMinimize?: () => void
@@ -45,25 +49,41 @@ const extractCloudinaryUrl = (proxyUrl: string): string | null => {
   }
 }
 
-const PDFViewer: React.FC<PDFViewerProps> = ({
-  pdfUrl,
-  currentPage = 1,
-  pagesToShow,
-  onPageChange,
-  isMinimized = false,
-  onToggleMinimize
-}) => {
+const PDFViewer: React.FC<PDFViewerProps> = (props) => {
+  const {
+    pdfUrl,
+    currentPage = 1,
+    pagesToShow,
+    focusPage,
+    onPageChange,
+    isMinimized = false,
+    onToggleMinimize
+  } = props
   const [numPages, setNumPages] = useState<number>(0)
   const [zoom, setZoom] = useState<number>(1.0)
   const [page, setPage] = useState<number>(currentPage)
   const [loadError, setLoadError] = useState<boolean>(false)
   const [useFallback, setUseFallback] = useState<boolean>(false)
+  const focusPageRef = React.useRef<HTMLDivElement>(null)
 
   // Determine if we should use scroll mode (multiple pages) or single page mode
   const useScrollMode = pagesToShow && pagesToShow.length > 0
   // Filter out invalid page numbers
   const validPages = pagesToShow ? pagesToShow.filter(p => p > 0 && (!numPages || p <= numPages)) : []
   const displayPages = useScrollMode ? validPages : [page]
+
+  // Scroll to focus page when it changes
+  React.useEffect(() => {
+    if (focusPage && useScrollMode && focusPageRef.current) {
+      setTimeout(() => {
+        focusPageRef.current?.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'center',
+          inline: 'center'
+        })
+      }, 200)
+    }
+  }, [focusPage, useScrollMode])
 
   // Determine which URL to use
   const effectivePdfUrl = React.useMemo(() => {
@@ -94,6 +114,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
   }, [pdfUrl, useFallback])
 
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
+    console.log('PDF loaded successfully:', { numPages, pdfUrl: effectivePdfUrl })
     setNumPages(numPages)
     setLoadError(false)
   }
@@ -101,6 +122,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
   const onDocumentLoadError = (error: Error) => {
     console.error('PDF Document load error:', error)
     setLoadError(true)
+    setNumPages(0)
     
     // Try fallback approaches
     if (!useFallback) {
@@ -143,11 +165,14 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
     setLoadError(false)
   }, [pdfUrl])
 
-  if (!pdfUrl) {
+  if (!pdfUrl || !effectivePdfUrl) {
     return (
       <Card className="h-full">
         <CardContent className="flex items-center justify-center h-full p-8">
-          <p className="text-gray-500">No PDF available</p>
+          <div className="text-center">
+            <p className="text-gray-500">No PDF available</p>
+            <p className="text-xs text-gray-400 mt-2">Upload a PDF to view pages here</p>
+          </div>
         </CardContent>
       </Card>
     )
@@ -167,6 +192,16 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
       </Card>
     )
   }
+
+  const pdfOptions = React.useMemo(() => ({
+    cMapUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}/cmaps/`,
+    cMapPacked: true,
+    standardFontDataUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}/standard_fonts/`,
+    withCredentials: false,
+    disableAutoFetch: false,
+    disableStream: false,
+    disableFontFace: false
+  }), []);
 
   return (
     <Card className="h-full flex flex-col">
@@ -195,7 +230,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
         </div>
       </CardHeader>
 
-      <CardContent className="flex-1 overflow-auto p-4">
+      <CardContent className="flex-1 overflow-auto p-6 pt-8 pb-12">
         {useScrollMode && displayPages.length === 0 ? (
           <div className="flex items-center justify-center h-full text-gray-500">
             <div className="text-center">
@@ -203,18 +238,13 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
               <p className="text-xs mt-2">Expand a question with a page number to view its source page</p>
             </div>
           </div>
-        ) : (
-          <div className="flex flex-col items-center">
+        ) : effectivePdfUrl && numPages > 0 || !loadError ? (
+          <div className="flex flex-col items-center space-y-8 py-4">
             <Document
               file={effectivePdfUrl}
               onLoadSuccess={onDocumentLoadSuccess}
               onLoadError={onDocumentLoadError}
-              options={{
-                cMapUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}/cmaps/`,
-                cMapPacked: true,
-                standardFontDataUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}/standard_fonts/`,
-                withCredentials: false
-              }}
+              options={pdfOptions}
               loading={
                 <div className="flex flex-col items-center justify-center p-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
@@ -231,7 +261,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
                     </p>
                   ) : (
                     <p className="text-sm text-gray-600 mb-2">
-                      The PDF proxy failed to load the document.
+                      The PDF failed to load.
                     </p>
                   )}
                   <p className="text-xs text-gray-500 break-all mb-2">
@@ -250,22 +280,59 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
                 </div>
               }
             >
-              {displayPages.map((pageNum, idx) => (
-                <div key={pageNum} className="mb-4">
-                  {useScrollMode && (
-                    <div className="text-center text-xs text-gray-500 mb-2 bg-gray-100 py-1 px-3 rounded-full inline-block">
-                      Page {pageNum}
+              {displayPages.map((pageNum, idx) => {
+                const isFocusPage = focusPage === pageNum
+                // Only render valid page numbers
+                if (pageNum < 1 || (numPages > 0 && pageNum > numPages)) {
+                  return null
+                }
+                return (
+                  <div 
+                    key={pageNum} 
+                    ref={isFocusPage ? focusPageRef : null}
+                    className={`transition-all scroll-mt-20 ${isFocusPage ? 'ring-4 ring-blue-500 rounded-lg p-3 bg-blue-50' : 'p-2'}`}
+                  >
+                    {useScrollMode && (
+                      <div className="text-center mb-3">
+                        <span className={`text-xs py-1.5 px-4 rounded-full inline-block shadow-sm ${
+                          isFocusPage 
+                            ? 'bg-blue-600 text-white font-semibold' 
+                            : 'bg-gray-200 text-gray-700'
+                        }`}>
+                          Page {pageNum} {isFocusPage && '• Current'}
+                        </span>
+                      </div>
+                    )}
+                    <div className={`${isFocusPage ? 'shadow-xl' : 'shadow-md'} rounded overflow-hidden`}>
+                      <Page
+                        key={`page-${pageNum}`}
+                        pageNumber={pageNum}
+                        scale={zoom}
+                        renderTextLayer={false}
+                        renderAnnotationLayer={false}
+                        loading={
+                          <div className="flex items-center justify-center p-8">
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-500"></div>
+                          </div>
+                        }
+                        error={
+                          <div className="p-4 bg-red-50 border border-red-200 rounded">
+                            <p className="text-sm text-red-600">Failed to render page {pageNum}</p>
+                          </div>
+                        }
+                      />
                     </div>
-                  )}
-                  <Page
-                    pageNumber={pageNum}
-                    scale={zoom}
-                    renderTextLayer={false}
-                    renderAnnotationLayer={false}
-                  />
-                </div>
-              ))}
+                  </div>
+                )
+              })}
             </Document>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center h-full text-gray-500">
+            <div className="text-center">
+              <p className="text-sm">PDF not available</p>
+              <p className="text-xs mt-2">Expand questions with page numbers to view PDF</p>
+            </div>
           </div>
         )}
       </CardContent>
@@ -302,11 +369,25 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
       )}
       
       {/* Scroll Mode Info */}
-      {useScrollMode && (
-        <div className="border-t px-4 py-2 bg-gray-50">
-          <p className="text-xs text-center text-gray-600">
-            Showing {displayPages.length} page{displayPages.length !== 1 ? 's' : ''} (Pages: {displayPages.sort((a, b) => a - b).join(', ')})
-          </p>
+      {useScrollMode && displayPages.length > 0 && (
+        <div className="border-t px-4 py-3 bg-gray-50">
+          <div className="flex items-center justify-center gap-3">
+            <p className="text-xs text-gray-600">
+              Showing <span className="font-semibold">{displayPages.length}</span> page{displayPages.length !== 1 ? 's' : ''}
+            </p>
+            <span className="text-gray-400">•</span>
+            <p className="text-xs text-gray-500">
+              Pages: {displayPages.sort((a, b) => a - b).join(', ')}
+            </p>
+            {focusPage && (
+              <>
+                <span className="text-gray-400">•</span>
+                <p className="text-xs text-blue-600 font-medium">
+                  Focus: Page {focusPage}
+                </p>
+              </>
+            )}
+          </div>
         </div>
       )}
     </Card>
@@ -314,4 +395,5 @@ const PDFViewer: React.FC<PDFViewerProps> = ({
 }
 
 export default PDFViewer
+export type { PDFViewerProps }
 
