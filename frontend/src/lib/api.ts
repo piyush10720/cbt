@@ -99,6 +99,7 @@ export interface Question {
   difficulty?: 'easy' | 'medium' | 'hard'
   subject?: string
   topic?: string
+  tags?: string[]
   explanation?: string
   order?: number
   diagram?: QuestionDiagram
@@ -138,10 +139,10 @@ export interface Exam {
     timezone: string
   }
   access: {
-    type: 'public' | 'private' | 'restricted'
+    type: 'owner' | 'invited' | 'public'
     allowedUsers?: string[]
     accessCode?: string
-    requireApproval: boolean
+    requireApproval?: boolean
   }
   status: 'draft' | 'published' | 'active' | 'completed' | 'archived'
   isPublished: boolean
@@ -149,6 +150,22 @@ export interface Exam {
   createdAt: string
   isActive?: boolean
   statistics?: any
+  folders?: string[]
+}
+
+export interface Folder {
+  _id: string
+  name: string
+  parent: string | null
+  createdBy: string
+  visibility: 'owner' | 'invited' | 'public'
+  allowedUsers?: string[]
+  description?: string
+  inviteCode?: string
+  inviteLink?: string
+  inviteLinkExpiry?: string
+  createdAt: string
+  updatedAt: string
 }
 
 export interface Result {
@@ -266,6 +283,7 @@ export const examAPI = {
     search?: string
     sortBy?: string
     sortOrder?: string
+    folderId?: string
   }): Promise<AxiosResponse<{ exams: Exam[]; pagination: any }>> =>
     api.get('/exam', { params }),
 
@@ -308,6 +326,92 @@ export const examAPI = {
     id: string
   ): Promise<AxiosResponse<{ data: { resultId: string; exam: Exam; attempt: any }; message: string }>> =>
     api.post(`/exam/${id}/start`),
+
+  mergeExams: (data: {
+    examIds: string[]
+    title?: string
+    description?: string
+    settings?: any
+    schedule?: any
+    access?: any
+  }): Promise<AxiosResponse<{ exam: Exam; message: string }>> =>
+    api.post('/exam/merge', data),
+}
+
+// Folder API
+export const folderAPI = {
+  createFolder: (data: {
+    name: string
+    parent?: string | null
+    visibility?: 'owner' | 'invited' | 'public'
+    allowedUsers?: string[]
+    description?: string
+  }): Promise<AxiosResponse<Folder>> =>
+    api.post('/folders', data),
+
+  getFolders: (parentId?: string): Promise<AxiosResponse<Folder[]>> =>
+    api.get('/folders', { params: { parentId } }),
+
+  updateFolder: (
+    id: string,
+    data: {
+      name?: string
+      parent?: string | null
+      visibility?: 'owner' | 'invited' | 'public'
+      allowedUsers?: string[]
+      description?: string
+    }
+  ): Promise<AxiosResponse<Folder>> =>
+    api.put(`/folders/${id}`, data),
+
+  deleteFolder: (id: string): Promise<AxiosResponse<{ message: string }>> =>
+    api.delete(`/folders/${id}`),
+
+  addExamToFolder: (
+    examId: string,
+    folderId: string
+  ): Promise<AxiosResponse<Exam>> =>
+    api.post('/folders/add-exam', { examId, folderId }),
+
+  removeExamFromFolder: (
+    examId: string,
+    folderId: string
+  ): Promise<AxiosResponse<Exam>> =>
+    api.post('/folders/remove-exam', { examId, folderId }),
+
+  // Invite system methods
+  generateInviteCode: (folderId: string): Promise<AxiosResponse<{ code: string }>> =>
+    api.post('/folders/invite/code', { folderId }),
+
+  generateInviteLink: (
+    folderId: string,
+    expiryDays?: number | 'never'
+  ): Promise<AxiosResponse<{ link: string; expiresAt?: string }>> =>
+    api.post('/folders/invite/link', { folderId, expiryDays }),
+
+  joinFolderByCode: (inviteCode: string): Promise<AxiosResponse<{ folder: Folder; message: string }>> =>
+    api.post('/folders/join/code', { inviteCode }),
+
+  joinFolderByLink: (token: string): Promise<AxiosResponse<{ folder: Folder; message: string }>> =>
+    api.get(`/folders/join/${token}`),
+
+  revokeInvite: (
+    folderId: string,
+    type: 'code' | 'link'
+  ): Promise<AxiosResponse<{ message: string }>> =>
+    api.post('/folders/invite/revoke', { folderId, type }),
+
+  addUserToFolder: (
+    folderId: string,
+    userId: string
+  ): Promise<AxiosResponse<{ folder: Folder; message: string }>> =>
+    api.post('/folders/users/add', { folderId, userId }),
+
+  removeUserFromFolder: (
+    folderId: string,
+    userId: string
+  ): Promise<AxiosResponse<{ folder: Folder; message: string }>> =>
+    api.post('/folders/users/remove', { folderId, userId }),
 }
 
 // Upload API
@@ -533,6 +637,12 @@ export const bookmarkAPI = {
 
   checkBookmarks: (resultId: string): Promise<AxiosResponse<{ bookmarkedQuestions: string[] }>> =>
     api.get(`/bookmarks/check/${resultId}`),
+}
+
+// User API
+export const userAPI = {
+  getUsersByIds: (userIds: string[]): Promise<AxiosResponse<{ users: any[] }>> =>
+    api.post('/auth/users/details', { userIds }),
 }
 
 export default api

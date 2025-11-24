@@ -17,6 +17,8 @@ import ResultsPage from '@/pages/ResultsPage'
 import ResultDetailsPage from '@/pages/ResultDetailsPage'
 import BookmarksPage from '@/pages/BookmarksPage'
 import ProfilePage from '@/pages/ProfilePage'
+import JoinFolderPage from '@/pages/JoinFolderPage'
+import JoinFolderByLinkPage from '@/pages/JoinFolderByLinkPage'
 
 // Components
 import Layout from '@/components/Layout'
@@ -132,6 +134,8 @@ const AppRoutes: React.FC = () => {
         <Route path="results/:id" element={<ResultDetailsPage />} />
         <Route path="bookmarks" element={<BookmarksPage />} />
         <Route path="profile" element={<ProfilePage />} />
+        <Route path="folders/join" element={<JoinFolderPage />} />
+        <Route path="folders/join/:inviteLink" element={<JoinFolderByLinkPage />} />
       </Route>
 
       {/* Catch all route */}

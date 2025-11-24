@@ -528,6 +528,23 @@ const CollapsibleQuestionCard: React.FC<CollapsibleQuestionCardProps> = memo(({
             )}
           </div>
 
+          {/* Tags */}
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">
+              Tags <span className="text-xs text-gray-500 font-normal">(comma separated)</span>
+            </label>
+            <Input
+              defaultValue={question.tags?.join(', ') || ''}
+              key={question.id + '-tags'} // Re-render when question changes
+              onBlur={(e) => {
+                const tags = e.target.value.split(',').map(t => t.trim()).filter(Boolean)
+                onEdit(question.id, { tags })
+              }}
+              placeholder="e.g. Algebra, 2023, Hard"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+
           {/* Question Type and Marks */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
