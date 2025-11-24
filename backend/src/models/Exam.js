@@ -43,6 +43,10 @@ const examSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Question'
   }],
+  folders: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Folder'
+  }],
   settings: {
     duration: {
       type: Number, // Duration in minutes
@@ -113,8 +117,8 @@ const examSchema = new mongoose.Schema({
   access: {
     type: {
       type: String,
-      enum: ['public', 'private', 'restricted'],
-      default: 'private'
+      enum: ['owner', 'invited', 'public'], // Updated from 'private', 'restricted', 'public'
+      default: 'owner' // Updated from 'private'
     },
     allowedUsers: [{
       type: mongoose.Schema.Types.ObjectId,

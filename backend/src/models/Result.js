@@ -45,8 +45,8 @@ const resultSchema = new mongoose.Schema({
   answers: [answerSchema],
   score: {
     type: Number,
-    default: 0,
-    min: 0
+    default: 0
+    // No min constraint - negative marks are allowed
   },
   totalMarks: {
     type: Number,
@@ -54,9 +54,8 @@ const resultSchema = new mongoose.Schema({
   },
   percentage: {
     type: Number,
-    default: 0,
-    min: 0,
-    max: 100
+    default: 0
+    // No min/max constraint - can be negative or > 100
   },
   status: {
     type: String,
@@ -190,6 +189,7 @@ resultSchema.methods.calculateAnalytics = function() {
   this.analytics.markedForReview = markedForReview;
   this.analytics.averageTimePerQuestion = answers.length > 0 ? Math.round(totalTimeSpent / answers.length) : 0;
 
+  // Allow negative scores (negative marking can result in negative total)
   this.score = totalScore;
   this.percentage = this.totalMarks > 0 ? Math.round((totalScore / this.totalMarks) * 100) : 0;
   this.timing.totalTimeSpent = totalTimeSpent;

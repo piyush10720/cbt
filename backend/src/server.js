@@ -12,6 +12,8 @@ const uploadRoutes = require('./routes/upload');
 const debugRoutes = require('./routes/debug');
 const bookmarkRoutes = require('./routes/bookmarks');
 const pdfProxyRoutes = require('./routes/pdf-proxy');
+const imageUploadRoutes = require('./routes/image-upload');
+const folderRoutes = require('./routes/folderRoutes');
 
 const app = express();
 
@@ -27,7 +29,7 @@ const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100 // limit each IP to 100 requests per windowMs
 });
-app.use(limiter);
+app.use(limiter);    
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
@@ -74,6 +76,8 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/debug', debugRoutes);
 app.use('/api/proxy', pdfProxyRoutes);
 app.use('/api/bookmarks', bookmarkRoutes);
+app.use('/api/image-upload', imageUploadRoutes);
+app.use('/api/folders', folderRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

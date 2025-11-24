@@ -27,6 +27,9 @@ class GeminiParser {
     this.baseDelay = 2000; // 2 seconds
     this.maxRetries = 3;
     
+    // Concurrency control for parallel processing
+    this.maxConcurrentRequests = parseInt(process.env.GEMINI_MAX_CONCURRENT || '3', 10);
+    
     this.lastPdfBuffer = null
 
     cloudinary.config({
@@ -38,6 +41,12 @@ class GeminiParser {
     if (!this.apiKey) {
       console.warn('GEMINI_API_KEY not found in environment variables');
     }
+    
+    console.log(`✅ GeminiParser initialized`);
+    console.log(`   📝 Text model: ${this.model}`);
+    console.log(`   🎨 Vision model: ${this.visionModel}`);
+    console.log(`   ⚙️  Concurrency: ${this.maxConcurrentRequests} parallel requests`);
+    console.log(`   ⏱️  Timeout: ${this.requestTimeout / 1000}s`);
   }
 
   /**
@@ -67,19 +76,25 @@ class GeminiParser {
         pagesPerChunk: parseInt(process.env.GEMINI_PAGES_PER_CHUNK ?? '5', 10)
       })
 
-      let allQuestions = []
+      // Process chunks in parallel with concurrency control
+      console.log(`🚀 Processing ${chunks.length} chunks in parallel (max ${this.maxConcurrentRequests} concurrent)`)
 
-      for (const [chunkIndex, chunk] of chunks.entries()) {
+      const chunkTasks = chunks.map((chunk, chunkIndex) => async () => {
         console.log(`🧩 Processing chunk ${chunkIndex + 1}/${chunks.length} (pages ${chunk.startPage}-${chunk.endPage})`)
         console.log(`   📄 Sending to Gemini: ${Math.round(chunk.buffer.length / 1024)}KB (${chunk.endPage - chunk.startPage + 1} pages only)`)
-        this.lastPdfBuffer = chunk.buffer
+        
         const responseText = await this.callGeminiAPIWithFiles(chunk.buffer, answerKeyBuffer, chunk.startPage)
         const questions = await this.parseGeminiResponse(responseText, {
           pageOffset: chunk.startPage - 1,
           chunkPageRange: { start: chunk.startPage, end: chunk.endPage }
         })
-        allQuestions = allQuestions.concat(questions)
-      }
+        
+        console.log(`   ✅ Chunk ${chunkIndex + 1} complete: ${questions.length} questions`)
+        return questions
+      })
+
+      const allQuestions = await this.executeWithConcurrencyLimit(chunkTasks, this.maxConcurrentRequests)
+
 
       console.log(`✅ Phase 1 complete: ${allQuestions.length} questions parsed`)
 
@@ -111,7 +126,9 @@ class GeminiParser {
           const pagesPerBatch = 5
           const numBatches = Math.ceil(sortedPages.length / pagesPerBatch)
           
-          for (let batchIdx = 0; batchIdx < numBatches; batchIdx++) {
+          console.log(`🚀 Processing ${numBatches} page batches in parallel (max ${this.maxConcurrentRequests} concurrent)`)
+
+          const batchTasks = Array.from({ length: numBatches }, (_, batchIdx) => async () => {
             const batchPages = sortedPages.slice(batchIdx * pagesPerBatch, (batchIdx + 1) * pagesPerBatch)
             
             // Get questions on these pages
@@ -128,10 +145,16 @@ class GeminiParser {
               
               // Process images for questions on these pages
               await this.extractImagesForQuestions(extracted.buffer, questionsInBatch)
+              
+              console.log(`   ✅ Batch ${batchIdx + 1} complete`)
             } catch (error) {
               console.warn(`   ⚠️  Batch ${batchIdx + 1} failed, skipping:`, error.message)
+              throw error // Let executeWithConcurrencyLimit handle it
             }
-          }
+          })
+
+          await this.executeWithConcurrencyLimit(batchTasks, this.maxConcurrentRequests)
+
         } else {
           // Fallback if no page info
           console.log(`   ⚠️  No page info available, sending full PDF (${Math.round(questionPaperBuffer.length / 1024)}KB)`)
@@ -182,7 +205,7 @@ class GeminiParser {
           questionsWithImages: questionsWithImages.length
         }
       }
-    } catch (error) {
+    } catch (error) { 
       console.error('An error occurred during parsing:', error.message);
       return {
         success: false,
@@ -210,26 +233,47 @@ class GeminiParser {
    */
   async callGeminiAPIWithFiles(questionPaperBuffer, answerKeyBuffer = null, startPage = 1, retryCount = 0) {
     try {
-      const pageOffsetNote = startPage > 1 
+      const pageOffsetNote = startPage > 1  
         ? `\n\nIMPORTANT: This PDF chunk starts at page ${startPage} of the original document. When identifying page numbers, add ${startPage - 1} to the local page number. For example, if a question is on page 1 of this chunk, set pageNumber to ${startPage}.`
         : '';
       
       const parts = [
         {
-          text: `You are an exam parsing assistant. Analyse the uploaded PDF files and return a structured JSON array.
+          text: `You are an exam parsing assistant. Analyse the uploaded PDF files and return a structured JSON array. Make sure the json provided is valid as per requirements stated below.
 
 Requirements:
-- Identify every question in reading order.
-- For each question, note which PDF page number it appears on in the ORIGINAL FULL DOCUMENT.${pageOffsetNote}
+- Identify every question in reading order by looking for question numbers (Q1, Q2, 1., 2., etc.).
+- CRITICAL: If a question spans multiple pages (starts on one page, continues on next):
+  * Treat it as ONE SINGLE question
+  * Extract ALL text and options from both pages
+  * Note ONLY the page where it STARTS (first page where question number appears)
+  * Do NOT create duplicate questions for continued text
+- For each question, note which PDF page number it STARTS on in the ORIGINAL FULL DOCUMENT.${pageOffsetNote}
+- For tables, matrix or similar stuff which is tough in text/json representation consider it as diagram.
+- FOr question number have your own counting instead of counting from question paper but for matching with answer keys consider the question number of question paper
 - Supported types: mcq_single, mcq_multi, true_false, numeric, descriptive.
+- For NUMERIC questions:
+  * If answer key shows a single value (e.g., 42.5), use: "correct": ["42.5"]
+  * If answer key shows a range (e.g., 41.5 to 42.5, or 41.5-42.5), use: "correct": ["41.5-42.5"]
+  * Format range as "min-max" with no spaces
 - Extract question text verbatim (include any text that IS present, even if there's also an image/diagram).
 - Each question must include an "options" array with label and text for each option.
+- IMPORTANT for option labels: Extract labels WITHOUT parentheses or punctuation. For example:
+  * If option appears as "(A)", extract label as "A"
+  * If option appears as "A)", extract label as "A"
+  * If option appears as "A.", extract label as "A"
+  * Clean label format: just the letter/number without any formatting
+- If options continue on the next page, include them in the same question.
 - For questions/options that contain images or diagrams, indicate their presence in the "images" field:
   {
     "question": true/false,  // Does the question itself contain an image/diagram?
     "options": [false, true, false, false]  // Which options contain images? (array matches option order)
   }
-- If an answer key PDF is provided, align the correct option labels in "correct".
+- If an answer key PDF is provided,make sure to align the correct option labels in "correct" leave no question unanswerd if answer key is provided for exam if question number is 7.1.2 then find 7.1.2 in answer key and align the correct label.
+- Extract TAGS if available in the document context (e.g., "JEE Advanced 2023", "Calculus", "Section A").
+  * Look for headers, footers, or section titles that indicate the topic, year, or exam name.
+  * Add these as an array of strings in the "tags" field.
+  * Example: "tags": ["JEE Advanced 2023", "Mathematics", "Calculus"]
 - PRESERVE MATHEMATICAL NOTATION EXACTLY AS IT APPEARS:
   * Extract ALL LaTeX commands with backslashes: \\times, \\Sigma, \\alpha, \\sqrt, \\frac, \\begin, \\end, etc.
   * Preserve matrix notation: \\begin{bmatrix}...\\end{bmatrix}, \\begin{pmatrix}...\\end{pmatrix}
@@ -240,12 +284,13 @@ Requirements:
   * \\times → \\\\times in JSON
   * \\Sigma → \\\\Sigma in JSON  
   * \\begin{bmatrix} → \\\\begin{bmatrix} in JSON
-  * Quotes: \\" 
+  * Quotes: \\"  
   * Newlines: \\n
   * EXAMPLE: Raw text "$\\times$" MUST be written as "$\\\\times$" in JSON
   * EXAMPLE: Raw text "\\begin{bmatrix}" MUST be written as "\\\\begin{bmatrix}" in JSON
 
-Return ONLY a JSON array where every question follows the appropriate schema based on type:
+Make sure json provided is valid and as per rules stated above.
+Return ONLY a JSON array where every question follows the appropriate schema based on type, have tags only if in question paper it is mentioned:
 
 For MCQ questions (mcq_single, mcq_multi):
 {
@@ -265,7 +310,8 @@ For MCQ questions (mcq_single, mcq_multi):
   "images": {
     "question": false,
     "options": [false, false, false, false]
-  }
+  },
+  "tags": ["year", "topic"]
 }
 
 For questions with matrices:
@@ -300,7 +346,7 @@ For True/False questions:
   "negative_marks": 0
 }
 
-For Numeric questions:
+For Numeric questions (single value or range):
 {
   "id": "q3",
   "type": "numeric",
@@ -308,6 +354,21 @@ For Numeric questions:
   "pageNumber": 1,
   "options": [],
   "correct": ["42.5"],
+  "marks": 2,
+  "negative_marks": 0,
+  "images": {
+    "question": false
+  }
+}
+
+For Numeric questions with range (if answer key specifies a range):
+{
+  "id": "q4",
+  "type": "numeric",
+  "text": "Question text here...",
+  "pageNumber": 1,
+  "options": [],
+  "correct": ["41.5-42.5"],
   "marks": 2,
   "negative_marks": 0,
   "images": {
@@ -608,8 +669,9 @@ For Descriptive questions:
 
     console.log(`\n🎨 Extracting images for ${questionsWithImages.length} question(s) in ${batches.length} batch(es)...`)
     console.log(`   📌 Using NEW METHOD: Bounding Box + Cropping`)
+    console.log(`🚀 Processing ${batches.length} image batches in parallel (max ${this.maxConcurrentRequests} concurrent)`)
 
-    for (const [batchIndex, batch] of batches.entries()) {
+    const batchTasks = batches.map((batch, batchIndex) => async () => {
       console.log(`\n📦 Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} questions)`)
 
       try {
@@ -617,7 +679,7 @@ For Descriptive questions:
         const imageRequests = batch.map(q => {
           const request = { 
             questionId: q.id,
-            pageNumber: q.pageNumber || 1 // Include page number for context
+            pageNumber: q.pageNumber || 1
           }
           if (q.images?.question) {
             request.extractQuestionImage = true
@@ -629,128 +691,39 @@ For Descriptive questions:
           }
           return request
         })
-
-        // Call Gemini to get bounding boxes (NEW METHOD)
+        
+        // Call Gemini to get bounding boxes
         const boundingBoxData = await this.requestImageBoundingBoxes(pdfBuffer, imageRequests)
 
-        // Process each question and crop images based on bounding boxes
-        for (const question of batch) {
+        // Process questions in parallel within this batch
+        await Promise.all(batch.map(async (question) => {
           const boxData = boundingBoxData[question.id]
           if (!boxData) {
             console.warn(`   ⚠️  No bounding box data found for question ${question.id}`)
-            continue
+            return
           }
 
           // Process question image if present
           if (boxData.question && boxData.question.boundingBox) {
-            try {
-              const page = boxData.question.page || question.pageNumber || 1
-              console.log(`   🎯 Processing question ${question.id} image from page ${page}`)
-              
-              // Convert PDF page to image
-              const pageImage = await imageCropper.convertPdfPageToImage(pdfBuffer, page)
-              
-              // Crop the image using the bounding box
-              const croppedImage = await imageCropper.cropImage(pageImage, boxData.question.boundingBox)
-              
-              // Convert buffer to base64 for upload
-              const base64Data = croppedImage.toString('base64')
-              
-              // Upload to Cloudinary
-              const identifier = `question_${question.id}`
-              const url = await this.uploadBase64ToCloudinary(base64Data, identifier, folder)
-              
-              if (url) {
-                question.questionImageUrl = url // Legacy field
-                question.diagram = {
-                  present: true,
-                  url: url,
-                  page: page,
-                  description: 'Extracted diagram from PDF',
-                  uploaded_at: new Date().toISOString()
-                }
-                console.log(`   ✅ Question ${question.id} image uploaded`)
-                console.log(`   🔗 URL: ${url}`)
-              }
-            } catch (error) {
-              console.error(`   ❌ Failed to process question ${question.id} image:`, error.message)
-              
-              // Fallback to old method if cropping fails
-              console.log(`   🔄 Attempting fallback to legacy base64 method...`)
-              try {
-                const fallbackRequest = [{
-                  questionId: question.id,
-                  extractQuestionImage: true
-                }]
-                const fallbackData = await this.requestBase64Images(pdfBuffer, fallbackRequest)
-                if (fallbackData[question.id]?.question) {
-                  const url = await this.uploadBase64ToCloudinary(
-                    fallbackData[question.id].question,
-                    `question_${question.id}`,
-                    folder
-                  )
-                  if (url) {
-                    question.questionImageUrl = url // Legacy field
-                    question.diagram = {
-                      present: true,
-                      url: url,
-                      description: 'Extracted diagram from PDF (fallback method)',
-                      uploaded_at: new Date().toISOString()
-                    }
-                    console.log(`   ✅ Question ${question.id} image uploaded (via fallback)`)
-                  }
-                }
-              } catch (fallbackError) {
-                console.error(`   ❌ Fallback also failed for question ${question.id}`)
-              }
-            }
+            await this.processQuestionImage(question, boxData.question, pdfBuffer, folder)
           }
 
           // Process option images if present
           if (boxData.options) {
-            if (!question.optionImages) {
-              question.optionImages = {}
-            }
-            
-            for (const [optionLabel, optionData] of Object.entries(boxData.options)) {
-              if (!optionData.boundingBox) {
-                console.warn(`   ⚠️  No bounding box for question ${question.id} option ${optionLabel}`)
-                continue
-              }
-              
-              try {
-                const page = optionData.page || question.pageNumber || 1
-                console.log(`   🎯 Processing question ${question.id} option ${optionLabel} from page ${page}`)
-                
-                // Convert PDF page to image (will be cached if same page)
-                const pageImage = await imageCropper.convertPdfPageToImage(pdfBuffer, page)
-                
-                // Crop the option image
-                const croppedImage = await imageCropper.cropImage(pageImage, optionData.boundingBox)
-                
-                // Convert to base64
-                const base64Data = croppedImage.toString('base64')
-                
-                // Upload to Cloudinary
-                const identifier = `question_${question.id}_option_${optionLabel}`
-                const url = await this.uploadBase64ToCloudinary(base64Data, identifier, folder)
-                
-                if (url) {
-                  question.optionImages[optionLabel] = url
-                  console.log(`   ✅ Question ${question.id} option ${optionLabel} image uploaded`)
-                  console.log(`   🔗 URL: ${url}`)
-                }
-              } catch (error) {
-                console.error(`   ❌ Failed to process question ${question.id} option ${optionLabel}:`, error.message)
-              }
-            }
+            await this.processOptionImages(question, boxData.options, pdfBuffer, folder)
           }
-        }
+        }))
+        
+        console.log(`   ✅ Batch ${batchIndex + 1} complete`)
       } catch (error) {
         console.error(`   ❌ Failed to process batch ${batchIndex + 1}:`, error.message)
         console.error(`   Stack trace:`, error.stack)
+        throw error
       }
-    }
+    })
+
+    await this.executeWithConcurrencyLimit(batchTasks, this.maxConcurrentRequests)
+
 
     console.log(`\n✅ Image extraction complete`)
   }
@@ -1180,6 +1153,166 @@ Generate the images now and encode them as base64:`
       console.error(`   ❌ Failed to upload ${identifier}:`, error.message)
       return null
     }
+  }
+
+  /**
+   * Execute async functions with concurrency limit
+   * Similar to Go's buffered channel: ch := make(chan struct{}, limit)
+   * 
+   * @param {Array<Function>} tasks - Array of async functions to execute
+   * @param {number} limit - Maximum concurrent executions
+   * @returns {Promise<Array>} - Results from all tasks (flattened)
+   */
+  async executeWithConcurrencyLimit(tasks, limit) {
+    const results = []
+    const executing = []
+    
+    for (const [index, task] of tasks.entries()) {
+      // Create promise for this task
+      const promise = Promise.resolve().then(() => task()).then(result => {
+        results[index] = result
+        // Remove from executing array
+        const execIndex = executing.indexOf(promise)
+        if (execIndex > -1) {
+          executing.splice(execIndex, 1)
+        }
+        return result
+      }).catch(error => {
+        console.error(`❌ Task ${index + 1}/${tasks.length} failed:`, error.message)
+        results[index] = { error: error.message, index }
+        // Remove from executing array
+        const execIndex = executing.indexOf(promise)
+        if (execIndex > -1) {
+          executing.splice(execIndex, 1)
+        }
+        // Don't throw - let other tasks continue
+        return { error: error.message, index }
+      })
+      
+      executing.push(promise)
+      
+      // If we've hit the concurrency limit, wait for one to finish
+      if (executing.length >= limit) {
+        await Promise.race(executing)
+      }
+    }
+    
+    // Wait for all remaining tasks
+    await Promise.allSettled(executing)
+    
+    // Flatten results and filter out errors
+    return results.flat().filter(r => r && !r.error)
+  }
+
+  /**
+   * Process question image with bounding box
+   * @param {Object} question - Question object
+   * @param {Object} questionData - Bounding box data for question
+   * @param {Buffer} pdfBuffer - PDF buffer
+   * @param {string} folder - Cloudinary folder
+   */
+  async processQuestionImage(question, questionData, pdfBuffer, folder) {
+    try {
+      const page = questionData.page || question.pageNumber || 1
+      console.log(`   🎯 Processing question ${question.id} image from page ${page}`)
+      
+      // Convert PDF page to image
+      const pageImage = await imageCropper.convertPdfPageToImage(pdfBuffer, page)
+      
+      // Crop the image using the bounding box
+      const croppedImage = await imageCropper.cropImage(pageImage, questionData.boundingBox)
+      
+      // Convert buffer to base64 for upload
+      const base64Data = croppedImage.toString('base64')
+      
+      // Upload to Cloudinary
+      const identifier = `question_${question.id}`
+      const url = await this.uploadBase64ToCloudinary(base64Data, identifier, folder)
+      
+      if (url) {
+        question.questionImageUrl = url
+        question.diagram = {
+          present: true,
+          url: url,
+          page: page,
+          description: 'Extracted diagram from PDF',
+          uploaded_at: new Date().toISOString()
+        }
+        console.log(`   ✅ Question ${question.id} image uploaded`)
+      }
+    } catch (error) {
+      console.error(`   ❌ Failed to process question ${question.id} image:`, error.message)
+      // Fallback to legacy method if needed
+      console.log(`   🔄 Attempting fallback to legacy base64 method...`)
+      try {
+        const fallbackRequest = [{
+          questionId: question.id,
+          extractQuestionImage: true
+        }]
+        const fallbackData = await this.requestBase64Images(pdfBuffer, fallbackRequest)
+        if (fallbackData[question.id]?.question) {
+          const url = await this.uploadBase64ToCloudinary(
+            fallbackData[question.id].question,
+            `question_${question.id}`,
+            folder
+          )
+          if (url) {
+            question.questionImageUrl = url
+            question.diagram = {
+              present: true,
+              url: url,
+              description: 'Extracted diagram from PDF (fallback method)',
+              uploaded_at: new Date().toISOString()
+            }
+            console.log(`   ✅ Question ${question.id} image uploaded (via fallback)`)
+          }
+        }
+      } catch (fallbackError) {
+        console.error(`   ❌ Fallback also failed for question ${question.id}`)
+      }
+    }
+  }
+
+  /**
+   * Process option images with bounding boxes
+   * @param {Object} question - Question object
+   * @param {Object} optionsData - Bounding box data for options
+   * @param {Buffer} pdfBuffer - PDF buffer
+   * @param {string} folder - Cloudinary folder
+   */
+  async processOptionImages(question, optionsData, pdfBuffer, folder) {
+    if (!question.optionImages) {
+      question.optionImages = {}
+    }
+    
+    // Process all option images in parallel
+    await Promise.all(
+      Object.entries(optionsData).map(async ([optionLabel, optionData]) => {
+        if (!optionData.boundingBox) {
+          console.warn(`   ⚠️  No bounding box for question ${question.id} option ${optionLabel}`)
+          return
+        }
+        
+        try {
+          const page = optionData.page || question.pageNumber || 1
+          console.log(`   🎯 Processing question ${question.id} option ${optionLabel} from page ${page}`)
+          
+          const pageImage = await imageCropper.convertPdfPageToImage(pdfBuffer, page)
+          const croppedImage = await imageCropper.cropImage(pageImage, optionData.boundingBox)
+          const base64Data = croppedImage.toString('base64')
+          
+          const identifier = `question_${question.id}_option_${optionLabel}`
+          const url = await this.uploadBase64ToCloudinary(base64Data, identifier, folder)
+          
+          if (url) {
+            question.optionImages[optionLabel] = url
+            console.log(`   ✅ Question ${question.id} option ${optionLabel} image uploaded`)
+          }
+        } catch (error) {
+          console.error(`   ❌ Failed to process question ${question.id} option ${optionLabel}:`, error.message)
+        }
+      })
+    )
   }
 }
 

@@ -4,23 +4,48 @@ const collectOptionIdentifiers = (options = []) => {
   const identifiers = new Set();
 
   options.forEach(option => {
-    if (typeof option !== 'string') {
+    let optionText;
+    let optionLabel;
+
+    // Handle both string and object formats
+    if (typeof option === 'string') {
+      optionText = option.trim();
+      optionLabel = null;
+    } else if (option && typeof option === 'object') {
+      // Object format: {label: "A", text: "...", diagram: {...}}
+      optionLabel = option.label;
+      optionText = option.text || option.label;
+    } else {
       return;
     }
 
-    const trimmed = option.trim();
-
-    if (!trimmed) {
+    if (!optionText) {
       return;
+    }
+
+    // Add the label if explicitly provided (object format)
+    if (optionLabel) {
+      const cleanLabel = String(optionLabel).trim().replace(/[()]/g, ''); // Remove parentheses
+      identifiers.add(cleanLabel.toUpperCase());
+      identifiers.add(cleanLabel);
+      identifiers.add(`(${cleanLabel})`); // With parentheses
+      identifiers.add(`(${cleanLabel.toUpperCase()})`);
     }
 
     // Add full option text
-    identifiers.add(trimmed);
+    identifiers.add(optionText);
+    identifiers.add(optionText.toUpperCase());
 
-    // Extract leading label (e.g. "A", "(B)", "1.") for letter/number based answers
-    const match = trimmed.match(/^\(?([A-Z0-9])\)?[\.)\:\-]?\s*/i);
+    // Extract leading label from text (e.g. "A", "(B)", "1.") for letter/number based answers
+    // Handle various formats: A, (A), A), A., A:, A-
+    const match = optionText.match(/^\(?([A-Z0-9])\)?[\.)\:\-]?\s*/i);
     if (match && match[1]) {
-      identifiers.add(match[1].toUpperCase());
+      const letter = match[1].toUpperCase();
+      identifiers.add(letter);
+      identifiers.add(letter.toLowerCase());
+      identifiers.add(`(${letter})`);
+      identifiers.add(`(${letter.toLowerCase()})`);
+      identifiers.add(`${letter})`);
     }
   });
 
@@ -70,6 +95,11 @@ const questionSchema = new mongoose.Schema({
       message: 'Negative marks should be 0 or a negative number'
     }
   },
+  negative_marking_scheme: {
+    type: String,
+    enum: ['none', '1/4', '1/3', '1/2', 'custom'],
+    default: 'none'
+  },
   difficulty: {
     type: String,
     enum: ['easy', 'medium', 'hard'],
@@ -77,6 +107,7 @@ const questionSchema = new mongoose.Schema({
   },
   subject: String,
   topic: String,
+  tags: [String],
   explanation: String,
   imageUrl: String, // Legacy field for backward compatibility
   diagram: {
@@ -121,6 +152,15 @@ questionSchema.pre('validate', function(next) {
     }
     // Validate that correct answers exist in options
     const optionIdentifiers = collectOptionIdentifiers(this.options);
+    console.log('Validating question:', {
+      id: this.id,
+      type: this.type,
+      optionsCount: this.options.length,
+      options: this.options,
+      correctAnswers: this.correct,
+      optionIdentifiers: Array.from(optionIdentifiers)
+    });
+    
     const invalidAnswers = this.correct
       .map(answer => (typeof answer === 'string' ? answer.trim() : String(answer)))
       .filter(answer => {
@@ -131,7 +171,7 @@ questionSchema.pre('validate', function(next) {
         return !(optionIdentifiers.has(answer) || optionIdentifiers.has(answer.toUpperCase()))
       });
     if (invalidAnswers.length > 0) {
-      return next(new Error(`Correct answers not found in options: ${invalidAnswers.join(', ')}`));
+      return next(new Error(`Question ${this.id}: Correct answers not found in options: ${invalidAnswers.join(', ')}. Available options: ${Array.from(optionIdentifiers).slice(0, 10).join(', ')}`));
     }
     // Single choice MCQ should have only one correct answer
     if (this.type === 'mcq_single' && this.correct.length > 1) {
@@ -150,9 +190,19 @@ questionSchema.pre('validate', function(next) {
     if (!this.correct || this.correct.length === 0) {
       return next(new Error('Numeric questions must have correct answer'));
     }
-    // Validate that correct answer is numeric
-    if (isNaN(parseFloat(this.correct[0]))) {
-      return next(new Error('Numeric questions must have numeric correct answer'));
+    // Allow range format: "min-max" or single numeric value
+    const answerStr = this.correct[0];
+    if (answerStr.includes('-') && answerStr.split('-').length === 2) {
+      // Range format
+      const [min, max] = answerStr.split('-').map(s => parseFloat(s.trim()));
+      if (isNaN(min) || isNaN(max) || min >= max) {
+        return next(new Error('Numeric range must be valid: min-max (e.g., 41.5-42.5)'));
+      }
+    } else {
+      // Single value
+      if (isNaN(parseFloat(answerStr))) {
+        return next(new Error('Numeric questions must have numeric correct answer or range (min-max)'));
+      }
     }
   }
   
@@ -161,23 +211,51 @@ questionSchema.pre('validate', function(next) {
 
 // Method to check if an answer is correct
 questionSchema.methods.isCorrect = function(userAnswer) {
-  if (!userAnswer) return false;
+  if (!userAnswer && userAnswer !== 0) return false;
   
   switch (this.type) {
     case 'mcq_single':
     case 'true_false':
-      return this.correct.includes(userAnswer);
+      // Normalize comparison - remove parentheses and punctuation, handle case differences
+      const normalizedUserAnswer = String(userAnswer).replace(/[()\.:\-]/g, '').trim().toUpperCase();
+      const normalizedCorrect = this.correct.map(ans => String(ans).replace(/[()\.:\-]/g, '').trim().toUpperCase());
+      
+      // Debug logging
+      console.log('Answer comparison:', {
+        questionId: this.id,
+        userAnswer: userAnswer,
+        normalizedUserAnswer,
+        correctAnswers: this.correct,
+        normalizedCorrect,
+        result: normalizedCorrect.includes(normalizedUserAnswer)
+      });
+      
+      return normalizedCorrect.includes(normalizedUserAnswer);
     
     case 'mcq_multi':
       if (!Array.isArray(userAnswer)) return false;
-      return userAnswer.length === this.correct.length &&
-             userAnswer.every(answer => this.correct.includes(answer)) &&
-             this.correct.every(answer => userAnswer.includes(answer));
+      // Normalize all answers for comparison - remove parentheses and punctuation
+      const normalizedUserAnswers = userAnswer.map(ans => String(ans).replace(/[()\.:\-]/g, '').trim().toUpperCase());
+      const normalizedCorrectAnswers = this.correct.map(ans => String(ans).replace(/[()\.:\-]/g, '').trim().toUpperCase());
+      return normalizedUserAnswers.length === normalizedCorrectAnswers.length &&
+             normalizedUserAnswers.every(answer => normalizedCorrectAnswers.includes(answer)) &&
+             normalizedCorrectAnswers.every(answer => normalizedUserAnswers.includes(answer));
     
     case 'numeric':
-      const correctNum = parseFloat(this.correct[0]);
       const userNum = parseFloat(userAnswer);
-      return !isNaN(userNum) && Math.abs(correctNum - userNum) < 0.001; // Allow small floating point differences
+      if (isNaN(userNum)) return false;
+      
+      const answerStr = this.correct[0];
+      
+      // Check if range format (min-max)
+      if (answerStr.includes('-') && answerStr.split('-').length === 2) {
+        const [min, max] = answerStr.split('-').map(s => parseFloat(s.trim()));
+        return userNum >= min && userNum <= max;
+      } else {
+        // Single value - allow small floating point differences
+        const correctNum = parseFloat(answerStr);
+        return Math.abs(correctNum - userNum) < 0.001;
+      }
     
     case 'descriptive':
       // Descriptive questions need manual evaluation
@@ -190,6 +268,17 @@ questionSchema.methods.isCorrect = function(userAnswer) {
 
 // Method to calculate marks for this question
 questionSchema.methods.calculateMarks = function(userAnswer) {
+  // Check if question was actually attempted
+  const isAttempted = userAnswer !== null && 
+                     userAnswer !== undefined && 
+                     userAnswer !== '' &&
+                     !(Array.isArray(userAnswer) && userAnswer.length === 0);
+
+  // Unanswered questions get 0 marks (no penalty)
+  if (!isAttempted) {
+    return { marks: 0, needsManualGrading: false };
+  }
+
   if (this.type === 'descriptive') {
     // Descriptive questions need manual grading
     return { marks: 0, needsManualGrading: true };
@@ -203,6 +292,7 @@ questionSchema.methods.calculateMarks = function(userAnswer) {
   if (isCorrect) {
     return { marks: this.marks, needsManualGrading: false };
   } else {
+    // Negative marks only for WRONG answers, not unanswered
     return { marks: this.negative_marks, needsManualGrading: false };
   }
 };

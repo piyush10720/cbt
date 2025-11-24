@@ -8,6 +8,7 @@ const {
   unpublishExam,
   deleteExam,
   startExam,
+  mergeExams,
   createExamValidation
 } = require('../controllers/examController');
 const { authenticate, authorize } = require('../middleware/auth');
@@ -23,6 +24,7 @@ router.get('/:id', getExamById);
 router.post('/:id/start', startExam);
 
 // Teacher/Admin only routes
+router.post('/merge', authorize('teacher', 'admin'), mergeExams);
 router.post('/', authorize('teacher', 'admin'), createExamValidation, createExam);
 router.put('/:id', authorize('teacher', 'admin'), updateExam);
 router.post('/:id/publish', authorize('teacher', 'admin'), publishExam);

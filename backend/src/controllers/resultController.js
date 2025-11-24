@@ -320,6 +320,7 @@ const getResult = async (req, res) => {
           questionText: answer.questionId.text,
           questionType: answer.questionId.type,
           questionOptions: answer.questionId.options,
+          questionDiagram: answer.questionId.diagram || null,
           userAnswer: answer.userAnswer,
           correctAnswer: answer.questionId.correct,
           isCorrect: answer.isCorrect,
@@ -406,6 +407,107 @@ const getUserResults = async (req, res) => {
     console.error('Get user results error:', error);
     res.status(500).json({
       message: 'Failed to fetch results',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
+};
+
+// Get all results for an exam (for creators/admins)
+const getExamResults = async (req, res) => {
+  try {
+    const { examId } = req.params;
+    const {
+      page = 1,
+      limit = 50,
+      status,
+      sortBy = 'createdAt',
+      sortOrder = 'desc'
+    } = req.query;
+
+    // Get the exam to check if user is creator
+    const Exam = require('../models/Exam');
+    const exam = await Exam.findById(examId);
+
+    if (!exam) {
+      return res.status(404).json({
+        message: 'Exam not found'
+      });
+    }
+
+    // Check if user is creator or admin
+    const isCreator = exam.createdBy.toString() === req.user.id.toString();
+    const isAdmin = req.user.role === 'admin';
+
+    if (!isCreator && !isAdmin) {
+      return res.status(403).json({
+        message: 'Access denied. Only exam creators can view all attempts.'
+      });
+    }
+
+    // Build filter
+    const filter = { examId };
+    if (status) {
+      filter.status = status;
+    }
+
+    // Build sort
+    const sortOptions = {};
+    sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    // Fetch results with user details
+    const results = await Result.find(filter)
+      .populate('userId', 'name email')
+      .sort(sortOptions)
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    const total = await Result.countDocuments(filter);
+
+    // Calculate aggregate analytics
+    const completedResults = results.filter(r => ['completed', 'submitted', 'auto_submitted'].includes(r.status));
+    const totalScore = completedResults.reduce((sum, r) => sum + r.score, 0);
+    const averageScore = completedResults.length > 0 ? (totalScore / completedResults.length) : 0;
+    const scores = completedResults.map(r => r.score);
+    const highestScore = scores.length > 0 ? Math.max(...scores) : 0;
+    const lowestScore = scores.length > 0 ? Math.min(...scores) : 0;
+
+    res.json({
+      results: results.map(result => ({
+        id: result._id,
+        user: result.userId,
+        attemptNumber: result.attemptNumber,
+        score: result.score,
+        totalMarks: result.totalMarks,
+        percentage: result.percentage,
+        status: result.status,
+        timing: result.timing,
+        analytics: result.analytics,
+        cheatingFlags: result.cheatingFlags,
+        createdAt: result.createdAt
+      })),
+      pagination: {
+        current: parseInt(page),
+        pages: Math.ceil(total / parseInt(limit)),
+        total,
+        limit: parseInt(limit)
+      },
+      aggregateAnalytics: {
+        totalAttempts: total,
+        completedAttempts: completedResults.length,
+        averageScore: averageScore.toFixed(2),
+        highestScore,
+        lowestScore,
+        examTitle: exam.title,
+        totalMarks: exam.settings.totalMarks
+      }
+    });
+
+  } catch (error) {
+    console.error('Get exam results error:', error);
+    res.status(500).json({
+      message: 'Failed to fetch exam results',
       error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
     });
   }
@@ -512,6 +614,7 @@ module.exports = {
   submitExam,
   getResult,
   getUserResults,
+  getExamResults,
   addCheatingFlag,
   explainAnswer,
   submitAnswerValidation

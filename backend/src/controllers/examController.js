@@ -77,7 +77,9 @@ const createExam = async (req, res) => {
         totalMarks
       },
       schedule,
-      access: access || { type: 'private' }
+      schedule,
+      access: access || { type: 'private' },
+      originalFiles: req.body.originalFiles
     });
 
     await exam.save();
@@ -117,10 +119,24 @@ const getExams = async (req, res) => {
       createdBy, 
       search,
       sortBy = 'createdAt',
-      sortOrder = 'desc'
+      sortOrder = 'desc',
+      folderId
     } = req.query;
 
     const filter = {};
+    
+    // Filter by folder
+    if (folderId) {
+      if (folderId === 'root') {
+        filter.$or = [
+          { folders: { $exists: false } },
+          { folders: null },
+          { folders: { $size: 0 } }
+        ];
+      } else {
+        filter.folders = folderId;
+      }
+    }
     
     // Filter by status
     if (status) {
@@ -245,6 +261,7 @@ const getExamById = async (req, res) => {
         settings: exam.settings,
         schedule: exam.schedule,
         access: exam.access,
+        originalFiles: exam.originalFiles,
         status: exam.status,
         isPublished: exam.isPublished,
         publishedAt: exam.publishedAt,
@@ -478,8 +495,23 @@ const deleteExam = async (req, res) => {
       });
     }
 
-    // Delete associated questions
-    await Question.deleteMany({ _id: { $in: exam.questions } });
+    // Check if questions are used in other exams before deleting
+    const questionsToDelete = [];
+    for (const qId of exam.questions) {
+      const otherExams = await Exam.countDocuments({
+        _id: { $ne: exam._id },
+        questions: qId
+      });
+      
+      if (otherExams === 0) {
+        questionsToDelete.push(qId);
+      }
+    }
+
+    // Delete questions that are not shared
+    if (questionsToDelete.length > 0) {
+      await Question.deleteMany({ _id: { $in: questionsToDelete } });
+    }
 
     // Delete exam
     await Exam.findByIdAndDelete(id);
@@ -580,7 +612,8 @@ const startExam = async (req, res) => {
       text: question.text,
       options: question.options,
       marks: question.marks,
-      order: question.order
+      order: question.order,
+      diagram: question.diagram || null
     }));
 
     // Randomize questions if enabled
@@ -616,6 +649,96 @@ const startExam = async (req, res) => {
   }
 };
 
+// Merge exams
+const mergeExams = async (req, res) => {
+  try {
+    const { examIds, title, description, settings, schedule, access } = req.body;
+
+    if (!examIds || !Array.isArray(examIds) || examIds.length < 2) {
+      return res.status(400).json({ message: 'At least two exams are required to merge' });
+    }
+
+    // Fetch all source exams - user can merge their own exams OR public exams
+    const sourceExams = await Exam.find({ 
+      _id: { $in: examIds},
+      $or: [
+        { createdBy: req.user.id }, // User's own exams
+        { 'access.type': 'public', isPublished: true } // Public exams
+      ]
+    });
+
+    if (sourceExams.length !== examIds.length) {
+      return res.status(403).json({ 
+        message: 'You can only merge your own exams or public exams. Invited/owner exams from others cannot be merged.' 
+      });
+    }
+
+    // Collect all unique question IDs
+    const allQuestionIds = new Set();
+    sourceExams.forEach(exam => {
+      exam.questions.forEach(qId => allQuestionIds.add(qId.toString()));
+    });
+
+    // Fetch original questions
+    const originalQuestions = await Question.find({ _id: { $in: Array.from(allQuestionIds) } });
+
+    // Clone questions
+    const newQuestionIds = [];
+    let totalMarks = 0;
+
+    for (const question of originalQuestions) {
+      const questionObj = question.toObject();
+      delete questionObj._id;
+      delete questionObj.id;
+      delete questionObj.createdAt;
+      delete questionObj.updatedAt;
+      delete questionObj.__v;
+
+      // Create new question
+      const newQuestion = new Question({
+        ...questionObj,
+        id: `q_${Date.now()}_${Math.random().toString(36).substr(2, 9)}` // Generate new unique ID
+      });
+
+      await newQuestion.save();
+      newQuestionIds.push(newQuestion._id);
+      totalMarks += (newQuestion.marks || 1);
+    }
+
+    // Create new merged exam
+    const newExam = new Exam({
+      title: title || `Merged Exam (${new Date().toLocaleDateString()})`,
+      description: description || `Merged from ${sourceExams.length} exams`,
+      createdBy: req.user.id,
+      questions: newQuestionIds,
+      settings: {
+        ...settings,
+        totalMarks
+      },
+      schedule: schedule || {
+        startDate: new Date(),
+        endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // Default 7 days
+      },
+      access: access || { type: 'private' },
+      status: 'draft'
+    });
+
+    await newExam.save();
+
+    res.status(201).json({
+      message: 'Exams merged successfully',
+      exam: newExam
+    });
+
+  } catch (error) {
+    console.error('Merge exams error:', error);
+    res.status(500).json({
+      message: 'Failed to merge exams',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
+};
+
 module.exports = {
   createExam,
   getExams,
@@ -625,5 +748,6 @@ module.exports = {
   unpublishExam,
   deleteExam,
   startExam,
+  mergeExams,
   createExamValidation
 };

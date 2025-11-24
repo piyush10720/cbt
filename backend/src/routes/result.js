@@ -5,6 +5,7 @@ const {
   submitExam,
   getResult,
   getUserResults,
+  getExamResults,
   addCheatingFlag,
   explainAnswer,
   submitAnswerValidation
@@ -24,6 +25,7 @@ router.post('/:resultId/cheating-flag', addCheatingFlag);
 router.post('/:resultId/explain', explainAnswer);
 
 // Result viewing routes
+router.get('/exam/:examId/attempts', getExamResults); // Get all attempts for an exam (creator/admin only)
 router.get('/:resultId', getResult);
 router.get('/', getUserResults);
 
