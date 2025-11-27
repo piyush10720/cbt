@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { BookOpen, Eye, EyeOff } from 'lucide-react'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import { validateEmail, validatePassword } from '@/lib/utils'
+import SEO from '@/components/SEO'
 
 const RegisterPage: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -88,6 +89,7 @@ const RegisterPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+      <SEO title="Register" description="Create a new account on CBT Platform." />
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">

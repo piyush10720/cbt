@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
+import SEO from '@/components/SEO'
 import { useQuery } from 'react-query'
 import { examAPI, resultAPI } from '@/lib/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -83,6 +84,7 @@ const DashboardPage = () => {
       animate="show"
       className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8"
     >
+      <SEO title="Dashboard" description="View your recent exams and performance statistics." />
       {/* Welcome Section */}
       <motion.div variants={item} className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-primary to-purple-600 p-8 text-white shadow-xl">
         <div className="relative z-10">

@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { BookOpen, Eye, EyeOff } from 'lucide-react'
 import LoadingSpinner from '@/components/LoadingSpinner'
+import SEO from '@/components/SEO'
 
 const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('')
@@ -46,6 +47,7 @@ const LoginPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+      <SEO title="Login" description="Login to your CBT Platform account." />
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">

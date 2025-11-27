@@ -1,6 +1,7 @@
 import React from 'react'
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
+import SEO from '@/components/SEO'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -60,6 +61,7 @@ const Layout: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background font-sans antialiased flex flex-col">
+      <SEO />
       {/* Header */}
       <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 flex h-16 items-center justify-between">

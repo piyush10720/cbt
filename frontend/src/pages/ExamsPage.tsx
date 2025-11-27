@@ -53,6 +53,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { motion, AnimatePresence } from 'framer-motion'
+import SEO from '@/components/SEO'
 
 const ExamsPage: React.FC = () => {
   const navigate = useNavigate()
@@ -386,6 +387,7 @@ const ExamsPage: React.FC = () => {
 
   return (
     <TooltipProvider>
+      <SEO title="Exams" description="Browse and manage your exams." />
       <div className="flex h-[calc(100vh-64px)] bg-background">
         {/* Sidebar */}
         <div className="w-72 border-r bg-gray-50/50 flex flex-col">

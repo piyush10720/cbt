@@ -25,6 +25,7 @@ import {
 import toast from 'react-hot-toast'
 import { Badge } from '@/components/ui/badge'
 import { motion } from 'framer-motion'
+import SEO from '@/components/SEO'
 
 interface ResultsResponse {
   results: Result[]
@@ -134,6 +135,7 @@ const ResultsPage: React.FC = () => {
 
   return (
     <div className="space-y-8 pb-12">
+      <SEO title="Results" description="Track your progress and analyze your performance." />
       {/* Header Section */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
