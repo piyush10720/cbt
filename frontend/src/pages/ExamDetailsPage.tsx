@@ -153,6 +153,17 @@ const ExamDetailsPage: React.FC = () => {
               >
                 <Play className="mr-2 h-5 w-5" /> Start Exam
               </Button>
+
+              {exam.settings.allowPracticeMode && (
+                <Button 
+                  size="lg" 
+                  variant="outline"
+                  className="w-full shadow-lg text-lg h-12 bg-white/10 text-white hover:bg-white/20 border-white/20 hover:border-white/40"
+                  onClick={() => navigate(`/exams/${id}/take?mode=practice`)}
+                >
+                  <BookOpen className="mr-2 h-5 w-5" /> Practice Mode
+                </Button>
+              )}
               
               {isOwner && (
                 <div className="flex gap-2">

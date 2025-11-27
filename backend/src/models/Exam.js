@@ -98,6 +98,10 @@ const examSchema = new mongoose.Schema({
     allowCalculator: {
       type: Boolean,
       default: false
+    },
+    allowPracticeMode: {
+      type: Boolean,
+      default: false
     }
   },
   schedule: {

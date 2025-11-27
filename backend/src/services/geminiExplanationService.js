@@ -2,8 +2,22 @@ const axios = require('axios');
 
 class GeminiExplanationService {
   constructor() {
-    this.apiKey = process.env.GEMINI_API_KEY;
-    this.model = process.env.GEMINI_MODEL || 'gemini-2.5-pro';
+    let apiKey = process.env.GEMINI_API_KEY;
+    
+    // Handle case where API key is stored as a JSON array string
+    if (apiKey && apiKey.startsWith('[') && apiKey.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(apiKey);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          apiKey = parsed[0];
+        }
+      } catch (e) {
+        console.warn('Failed to parse GEMINI_API_KEY as JSON array, using as is.');
+      }
+    }
+
+    this.apiKey = apiKey;
+    this.model = process.env.GEMINI_MODEL || 'gemini-2.5-flash'; // Updated to flash as seen in logs
     this.baseUrl = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent`;
 
     if (!this.apiKey) {

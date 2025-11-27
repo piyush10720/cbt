@@ -132,6 +132,8 @@ export interface Exam {
     preventTabSwitch: boolean
     webcamMonitoring: boolean
     maxAttempts: number
+    allowCalculator: boolean
+    allowPracticeMode: boolean
   }
   schedule: {
     startDate: string

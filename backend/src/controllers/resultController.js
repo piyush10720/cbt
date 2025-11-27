@@ -86,6 +86,7 @@ const submitAnswer = async (req, res) => {
         questionId,
         userAnswer,
         isCorrect: question.isCorrect(userAnswer),
+        correctAnswer: question.correct, // Return correct answer for practice mode
         marksAwarded: markingResult.marks,
         needsManualGrading: markingResult.needsManualGrading,
         timeSpent,

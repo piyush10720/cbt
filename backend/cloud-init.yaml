@@ -1,0 +1,521 @@
+#cloud-config
+
+# CBT Platform Backend Deployment Script for Oracle Cloud Infrastructure
+# Compatible with Oracle Linux 8/9 and Ubuntu 22.04 on OCI
+# Optimized for OCI Always Free Tier (ARM or AMD instances)
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - git
+  - curl
+  - wget
+  - tar
+  - gzip
+  - gcc
+  - gcc-c++
+  - make
+  - nginx
+  - firewalld
+
+runcmd:
+  # Detect OS and set package manager
+  - |
+    if [ -f /etc/oracle-release ]; then
+      echo "Detected Oracle Linux"
+      PKG_MGR="dnf"
+    else
+      echo "Detected Ubuntu/Debian"
+      PKG_MGR="apt-get"
+    fi
+  
+  # Install Node.js 20.x LTS
+  - |
+    if [ -f /etc/oracle-release ]; then
+      # Oracle Linux
+      curl -fsSL https://rpm.nodesource.com/setup_20.x | bash -
+      dnf install -y nodejs
+    else
+      # Ubuntu
+      curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+      apt-get install -y nodejs
+    fi
+  
+  # Install PM2 globally
+  - npm install -g pm2
+  
+  # Create application user (OCI default user is 'opc' for Oracle Linux, 'ubuntu' for Ubuntu)
+  - |
+    if id "opc" &>/dev/null; then
+      APP_USER="opc"
+    else
+      APP_USER="ubuntu"
+    fi
+    echo "Using application user: $APP_USER"
+  
+  # Create application directory
+  - mkdir -p /opt/cbt-backend
+  - cd /opt/cbt-backend
+  
+  # Create .env file with environment variables
+  - |
+    cat > /opt/cbt-backend/.env << 'EOF'
+    # Server Configuration
+    NODE_ENV=production
+    PORT=5000
+    
+    # MongoDB Connection
+    # Option 1: MongoDB Atlas (Recommended for OCI)
+    MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/cbt-platform?retryWrites=true&w=majority
+    
+    # Option 2: Local MongoDB (if installed)
+    # MONGODB_URI=mongodb://localhost:27017/cbt-platform
+    
+    # JWT Secret (CHANGE THIS!)
+    JWT_SECRET=your-super-secret-jwt-key-change-this-in-production-min-32-chars
+    JWT_EXPIRES_IN=7d
+    
+    # Cloudinary Configuration (for image uploads)
+    CLOUDINARY_CLOUD_NAME=your-cloud-name
+    CLOUDINARY_API_KEY=your-api-key
+    CLOUDINARY_API_SECRET=your-api-secret
+    
+    # Gemini API Configuration
+    GEMINI_API_KEY=your-gemini-api-key
+    GEMINI_MODEL=gemini-1.5-flash
+    
+    # CORS Configuration
+    CORS_ORIGIN=https://yourdomain.com
+    FRONTEND_URL=https://yourdomain.com
+    
+    # Rate Limiting
+    RATE_LIMIT_WINDOW_MS=900000
+    RATE_LIMIT_MAX_REQUESTS=100
+    
+    # MongoDB Timeouts
+    MONGO_SERVER_SELECTION_TIMEOUT_MS=10000
+    MONGO_SOCKET_TIMEOUT_MS=45000
+    EOF
+  
+  # Install MongoDB (Optional - MongoDB Atlas is recommended for OCI)
+  # Uncomment if you want local MongoDB installation
+  # - |
+  #   if [ -f /etc/oracle-release ]; then
+  #     # Oracle Linux MongoDB installation
+  #     cat > /etc/yum.repos.d/mongodb-org-7.0.repo << 'MONGOREPO'
+  #     [mongodb-org-7.0]
+  #     name=MongoDB Repository
+  #     baseurl=https://repo.mongodb.org/yum/redhat/8/mongodb-org/7.0/x86_64/
+  #     gpgcheck=1
+  #     enabled=1
+  #     gpgkey=https://www.mongodb.org/static/pgp/server-7.0.asc
+  #     MONGOREPO
+  #     dnf install -y mongodb-org
+  #   else
+  #     # Ubuntu MongoDB installation
+  #     wget -qO - https://www.mongodb.org/static/pgp/server-7.0.asc | apt-key add -
+  #     echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse" | tee /etc/apt/sources.list.d/mongodb-org-7.0.list
+  #     apt-get update
+  #     apt-get install -y mongodb-org
+  #   fi
+  #   systemctl start mongod
+  #   systemctl enable mongod
+  
+  # Set proper permissions
+  - |
+    if id "opc" &>/dev/null; then
+      chown -R opc:opc /opt/cbt-backend
+    else
+      chown -R ubuntu:ubuntu /opt/cbt-backend
+    fi
+  
+  # Configure SELinux for Oracle Linux (allow Nginx to connect to backend)
+  - |
+    if [ -f /etc/oracle-release ]; then
+      setsebool -P httpd_can_network_connect 1
+      semanage port -a -t http_port_t -p tcp 5000 || true
+    fi
+  
+  # Configure Nginx as reverse proxy
+  - |
+    cat > /etc/nginx/conf.d/cbt-backend.conf << 'EOF'
+    server {
+        listen 80;
+        server_name _;  # Change this to your domain or OCI public IP
+        
+        client_max_body_size 50M;
+        
+        location / {
+            proxy_pass http://localhost:5000;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection 'upgrade';
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_cache_bypass $http_upgrade;
+            
+            # Timeout settings for large file uploads
+            proxy_connect_timeout 600;
+            proxy_send_timeout 600;
+            proxy_read_timeout 600;
+            send_timeout 600;
+        }
+        
+        # Health check endpoint
+        location /api/health {
+            proxy_pass http://localhost:5000/api/health;
+            access_log off;
+        }
+    }
+    EOF
+  
+  # Remove default Nginx configuration
+  - rm -f /etc/nginx/sites-enabled/default || true
+  - rm -f /etc/nginx/conf.d/default.conf || true
+  
+  # Test and restart Nginx
+  - nginx -t
+  - systemctl restart nginx
+  - systemctl enable nginx
+  
+  # Configure firewalld (OCI uses firewalld by default)
+  - systemctl start firewalld
+  - systemctl enable firewalld
+  - firewall-cmd --permanent --add-service=http
+  - firewall-cmd --permanent --add-service=https
+  - firewall-cmd --permanent --add-port=5000/tcp
+  - firewall-cmd --reload
+  
+  # Configure iptables for OCI (OCI has additional iptables rules)
+  - |
+    # Allow HTTP and HTTPS through OCI's iptables
+    iptables -I INPUT 6 -m state --state NEW -p tcp --dport 80 -j ACCEPT
+    iptables -I INPUT 6 -m state --state NEW -p tcp --dport 443 -j ACCEPT
+    iptables-save > /etc/iptables/rules.v4 || true
+    netfilter-persistent save || true
+  
+  # Create deployment script
+  - |
+    cat > /opt/cbt-backend/deploy.sh << 'EOF'
+    #!/bin/bash
+    set -e
+    
+    echo "Starting deployment..."
+    
+    # Detect user
+    if id "opc" &>/dev/null; then
+      APP_USER="opc"
+    else
+      APP_USER="ubuntu"
+    fi
+    
+    # Navigate to backend directory
+    cd /opt/cbt-backend/backend
+    
+    # Pull latest changes (if using git)
+    # git pull origin main
+    
+    # Install dependencies
+    echo "Installing dependencies..."
+    npm ci --production
+    
+    # Stop existing PM2 process
+    pm2 stop cbt-backend || true
+    pm2 delete cbt-backend || true
+    
+    # Start application with PM2
+    echo "Starting application..."
+    # For ARM instances (Always Free Tier), use 2 instances
+    # For AMD instances, you can increase this
+    pm2 start src/server.js --name cbt-backend --instances 2 --exec-mode cluster
+    
+    # Save PM2 configuration
+    pm2 save
+    
+    # Setup PM2 to start on system boot
+    env PATH=$PATH:/usr/bin pm2 startup systemd -u $APP_USER --hp /home/$APP_USER
+    
+    echo "Deployment completed successfully!"
+    echo "Backend is running on port 5000"
+    echo "Access via: http://$(curl -s ifconfig.me)"
+    EOF
+  
+  - chmod +x /opt/cbt-backend/deploy.sh
+  
+  # Create health check script
+  - |
+    cat > /opt/cbt-backend/health-check.sh << 'EOF'
+    #!/bin/bash
+    response=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5000/api/health || echo "000")
+    if [ "$response" = "200" ]; then
+        echo "✓ Backend is healthy (HTTP $response)"
+        exit 0
+    else
+        echo "✗ Backend is unhealthy (HTTP $response)"
+        pm2 status
+        exit 1
+    fi
+    EOF
+  
+  - chmod +x /opt/cbt-backend/health-check.sh
+  
+  # Create monitoring script
+  - |
+    cat > /opt/cbt-backend/monitor.sh << 'EOF'
+    #!/bin/bash
+    echo "=== CBT Backend Status ==="
+    echo ""
+    echo "PM2 Status:"
+    pm2 status
+    echo ""
+    echo "Nginx Status:"
+    systemctl status nginx --no-pager | head -n 10
+    echo ""
+    echo "Firewall Status:"
+    firewall-cmd --list-all
+    echo ""
+    echo "Health Check:"
+    ./health-check.sh
+    echo ""
+    echo "Public IP:"
+    curl -s ifconfig.me
+    echo ""
+    EOF
+  
+  - chmod +x /opt/cbt-backend/monitor.sh
+  
+  # Setup log rotation for PM2
+  - pm2 install pm2-logrotate
+  - pm2 set pm2-logrotate:max_size 10M
+  - pm2 set pm2-logrotate:retain 7
+
+write_files:
+  - path: /opt/cbt-backend/README-OCI.md
+    content: |
+      # CBT Platform Backend - Oracle Cloud Infrastructure Deployment
+      
+      ## OCI-Specific Configuration
+      
+      This deployment is optimized for Oracle Cloud Infrastructure, including:
+      - Oracle Linux 8/9 or Ubuntu 22.04 compatibility
+      - OCI Always Free Tier optimization (ARM/AMD)
+      - Firewalld and iptables configuration for OCI
+      - SELinux compatibility
+      
+      ## Post-Installation Steps
+      
+      ### 1. SSH into your OCI instance
+      ```bash
+      # For Oracle Linux instances
+      ssh opc@<instance-public-ip>
+      
+      # For Ubuntu instances
+      ssh ubuntu@<instance-public-ip>
+      ```
+      
+      ### 2. Upload your backend code
+      
+      **Option A: Using Git (Recommended)**
+      ```bash
+      cd /opt/cbt-backend
+      sudo git clone https://github.com/yourusername/cbt-platform.git .
+      sudo chown -R $USER:$USER /opt/cbt-backend
+      ```
+      
+      **Option B: Using SCP from your local machine**
+      ```bash
+      # From your local machine
+      scp -r ./backend opc@<instance-ip>:/tmp/
+      
+      # Then on the server
+      sudo mv /tmp/backend /opt/cbt-backend/
+      sudo chown -R $USER:$USER /opt/cbt-backend
+      ```
+      
+      ### 3. Configure environment variables
+      ```bash
+      sudo nano /opt/cbt-backend/.env
+      ```
+      
+      **Required configurations:**
+      - `MONGODB_URI`: Use MongoDB Atlas (recommended) or local MongoDB
+      - `JWT_SECRET`: Generate a strong secret (min 32 characters)
+      - `CLOUDINARY_*`: Your Cloudinary credentials
+      - `GEMINI_API_KEY`: Your Google Gemini API key
+      - `CORS_ORIGIN`: Your frontend URL
+      
+      ### 4. Configure OCI Security List
+      
+      In OCI Console, add ingress rules to your subnet's Security List:
+      - **HTTP**: Source CIDR: 0.0.0.0/0, Destination Port: 80
+      - **HTTPS**: Source CIDR: 0.0.0.0/0, Destination Port: 443
+      
+      ### 5. Deploy the application
+      ```bash
+      cd /opt/cbt-backend
+      sudo ./deploy.sh
+      ```
+      
+      ### 6. Verify deployment
+      ```bash
+      # Check status
+      ./monitor.sh
+      
+      # View logs
+      pm2 logs cbt-backend
+      
+      # Test health endpoint
+      curl http://localhost:5000/api/health
+      ```
+      
+      ### 7. Setup SSL with Let's Encrypt (Recommended)
+      
+      **Install Certbot:**
+      ```bash
+      # Oracle Linux
+      sudo dnf install -y certbot python3-certbot-nginx
+      
+      # Ubuntu
+      sudo apt-get install -y certbot python3-certbot-nginx
+      ```
+      
+      **Get SSL certificate:**
+      ```bash
+      sudo certbot --nginx -d api.yourdomain.com
+      ```
+      
+      ## OCI-Specific Commands
+      
+      ### Firewall Management
+      ```bash
+      # Check firewall status
+      sudo firewall-cmd --list-all
+      
+      # Add custom port
+      sudo firewall-cmd --permanent --add-port=5000/tcp
+      sudo firewall-cmd --reload
+      ```
+      
+      ### SELinux (Oracle Linux only)
+      ```bash
+      # Check SELinux status
+      sestatus
+      
+      # Allow Nginx to connect to backend
+      sudo setsebool -P httpd_can_network_connect 1
+      ```
+      
+      ### Instance Monitoring
+      ```bash
+      # CPU and Memory usage
+      top
+      
+      # Disk usage
+      df -h
+      
+      # Network connections
+      ss -tulpn
+      ```
+      
+      ## MongoDB Setup Options
+      
+      ### Option 1: MongoDB Atlas (Recommended for OCI)
+      1. Create a free cluster at https://www.mongodb.com/cloud/atlas
+      2. Whitelist your OCI instance IP
+      3. Get connection string and update `.env`
+      
+      ### Option 2: Local MongoDB Installation
+      Uncomment the MongoDB installation section in cloud-init.yaml
+      
+      ## Troubleshooting
+      
+      ### Backend not accessible from internet
+      1. Check OCI Security List has port 80/443 open
+      2. Check firewalld: `sudo firewall-cmd --list-all`
+      3. Check iptables: `sudo iptables -L -n`
+      4. Check Nginx: `sudo nginx -t && sudo systemctl status nginx`
+      
+      ### PM2 not starting on boot
+      ```bash
+      pm2 startup systemd
+      pm2 save
+      ```
+      
+      ### High memory usage (Always Free Tier)
+      ```bash
+      # Reduce PM2 instances to 1
+      pm2 scale cbt-backend 1
+      pm2 save
+      ```
+      
+      ### View logs
+      ```bash
+      # Application logs
+      pm2 logs cbt-backend
+      
+      # Nginx logs
+      sudo tail -f /var/log/nginx/error.log
+      sudo tail -f /var/log/nginx/access.log
+      
+      # System logs
+      sudo journalctl -u nginx -f
+      ```
+      
+      ## Performance Optimization for Always Free Tier
+      
+      The Always Free Tier includes:
+      - 2 AMD Compute instances (1/8 OCPU, 1 GB RAM each)
+      - 4 ARM Compute instances (1 OCPU, 6 GB RAM each)
+      
+      For optimal performance:
+      - Use ARM instances (better specs)
+      - Run 2 PM2 instances max
+      - Use MongoDB Atlas instead of local MongoDB
+      - Enable PM2 log rotation (already configured)
+      
+      ## Useful Commands
+      
+      ```bash
+      # Full status check
+      ./monitor.sh
+      
+      # Health check
+      ./health-check.sh
+      
+      # Restart backend
+      pm2 restart cbt-backend
+      
+      # View real-time logs
+      pm2 logs cbt-backend --lines 100
+      
+      # Monitor resources
+      pm2 monit
+      
+      # Get public IP
+      curl ifconfig.me
+      ```
+      
+      ## Support
+      
+      For issues specific to OCI deployment, check:
+      - OCI Documentation: https://docs.oracle.com/en-us/iaas/
+      - OCI Forums: https://cloudcustomerconnect.oracle.com/
+
+final_message: |
+  CBT Platform Backend cloud-init setup for Oracle Cloud completed!
+  
+  Next steps:
+  1. SSH into your OCI instance (ssh opc@<ip> or ssh ubuntu@<ip>)
+  2. Upload your backend code to /opt/cbt-backend/backend
+  3. Configure environment variables in /opt/cbt-backend/.env
+  4. Add ingress rules in OCI Security List (ports 80, 443)
+  5. Run deployment: sudo /opt/cbt-backend/deploy.sh
+  6. Setup SSL: sudo certbot --nginx -d api.yourdomain.com
+  7. Monitor: /opt/cbt-backend/monitor.sh
+  
+  Your backend will be accessible at: http://<instance-public-ip>
+  
+  See /opt/cbt-backend/README-OCI.md for detailed instructions!

@@ -1,13 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery } from 'react-query'
 import { examAPI, resultAPI } from '@/lib/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import { formatTime } from '@/lib/utils'
-import { AlertCircle, CheckCircle, ChevronLeft, ChevronRight, Clock, Flag, Send, Calculator } from 'lucide-react'
+import { AlertCircle, CheckCircle, ChevronLeft, ChevronRight, Clock, Flag, Send, Calculator, BookOpen, CheckCircle2, Tag, ChevronDown, ChevronUp } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { getOptionLabel, getOptionText, hasOptionDiagram, getOptionDiagramUrl } from '@/utils/questionHelpers'
 import ImageModal from '@/components/ImageModal'
@@ -43,6 +44,7 @@ type StartExamResponse = {
         options?: any[]
         marks: number
         order?: number
+        tags?: string[]
         diagram?: {
           present: boolean
           url?: string
@@ -54,6 +56,11 @@ type StartExamResponse = {
       number: number
       startedAt: string
       timeRemaining?: number
+      answers?: Array<{
+        questionId: string
+        userAnswer: any
+        isMarkedForReview?: boolean
+      }>
     }
   }
 }
@@ -79,7 +86,23 @@ const TakeExamPage: React.FC = () => {
   const fullscreenRequestedRef = useRef(false)
   const [fullscreenError, setFullscreenError] = useState<string | null>(null)
   const [modalImage, setModalImage] = useState<{ src: string; alt: string } | null>(null)
+
   const [showCalculator, setShowCalculator] = useState(false)
+  const [searchParams] = useSearchParams()
+  const isPracticeMode = searchParams.get('mode') === 'practice'
+  const [practiceAnswers, setPracticeAnswers] = useState<Record<string, { 
+    isCorrect: boolean; 
+    explanation?: {
+      overview: string;
+      why_user_answer: string;
+      why_correct_answer: string;
+      tips: string[];
+    }; 
+    correctAnswer?: any 
+  }>>({})
+  const [showExplanation, setShowExplanation] = useState<Record<string, boolean>>({})
+  const [loadingExplanation, setLoadingExplanation] = useState<Record<string, boolean>>({})
+  const [showTagsExpanded, setShowTagsExpanded] = useState(false)
 
   const {
     data,
@@ -104,7 +127,8 @@ const TakeExamPage: React.FC = () => {
             ...data.data.exam,
             settings: {
               ...data.data.exam.settings,
-              allowCalculator: data.data.exam.settings.allowCalculator ?? false
+              allowCalculator: data.data.exam.settings.allowCalculator ?? false,
+              allowPracticeMode: data.data.exam.settings.allowPracticeMode ?? false
             }
           }
         }
@@ -133,6 +157,25 @@ const TakeExamPage: React.FC = () => {
     if (!questions.length) return
 
     setAnswers((prev) => {
+      // If we have answers from the resumed attempt, use them
+      if (attempt?.answers && attempt.answers.length > 0) {
+        const restoredAnswers: Record<string, any> = {}
+        attempt.answers.forEach((ans: any) => {
+           if (ans.questionId) {
+             restoredAnswers[ans.questionId] = ans.userAnswer
+           }
+        })
+        // Merge with existing state to avoid overwriting if user has already interacted (though on mount it should be empty)
+        // But we also need to initialize nulls for unanswered questions
+        questions.forEach((question) => {
+          const questionId = question._id || question.id || ''
+          if (questionId && restoredAnswers[questionId] === undefined) {
+            restoredAnswers[questionId] = null
+          }
+        })
+        return restoredAnswers
+      }
+
       if (Object.keys(prev).length > 0) {
         return prev
       }
@@ -147,6 +190,23 @@ const TakeExamPage: React.FC = () => {
     })
 
     setMarkedForReview((prev) => {
+      // If we have answers from the resumed attempt, restore marked for review status
+      if (attempt?.answers && attempt.answers.length > 0) {
+        const restoredMarked: Record<string, boolean> = {}
+        attempt.answers.forEach((ans: any) => {
+           if (ans.questionId) {
+             restoredMarked[ans.questionId] = ans.isMarkedForReview || false
+           }
+        })
+        questions.forEach((question) => {
+          const questionId = question._id || question.id || ''
+          if (questionId && restoredMarked[questionId] === undefined) {
+            restoredMarked[questionId] = false
+          }
+        })
+        return restoredMarked
+      }
+
       if (Object.keys(prev).length > 0) {
         return prev
       }
@@ -159,7 +219,7 @@ const TakeExamPage: React.FC = () => {
       })
       return initial
     })
-  }, [questions])
+  }, [questions, attempt])
 
   useEffect(() => {
     if (!exam) return
@@ -168,7 +228,7 @@ const TakeExamPage: React.FC = () => {
     const startingTime = attempt?.timeRemaining ?? exam.settings.duration * 60
     setTimeLeft(startingTime)
 
-    if (exam.settings.preventTabSwitch) {
+    if (exam.settings.preventTabSwitch && !isPracticeMode) {
       const requestFullscreen = async () => {
         try {
           if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
@@ -237,7 +297,7 @@ const TakeExamPage: React.FC = () => {
   )
 
   useEffect(() => {
-    if (!exam?.settings.preventTabSwitch || hasSubmittedRef.current) {
+    if (!exam?.settings.preventTabSwitch || hasSubmittedRef.current || isPracticeMode) {
       return
     }
 
@@ -300,11 +360,13 @@ const TakeExamPage: React.FC = () => {
       [questionId]: value
     }))
 
-    submitAnswerMutation.mutate({
-      questionId,
-      userAnswer: value,
-      isMarkedForReview: markedForReview[questionId]
-    })
+    if (!isPracticeMode) {
+      submitAnswerMutation.mutate({
+        questionId,
+        userAnswer: value,
+        isMarkedForReview: markedForReview[questionId]
+      })
+    }
   }
 
   const handleToggleReview = (questionId: string) => {
@@ -346,6 +408,87 @@ const TakeExamPage: React.FC = () => {
     submitExamMutation.mutate({ isAutoSubmit: false })
   }
 
+
+
+  const handleCheckAnswer = async () => {
+    if (!currentQuestionId || !resultId) return
+
+    const userAnswer = answers[currentQuestionId]
+    if (userAnswer === null || userAnswer === undefined) {
+      toast.error('Please select an answer first')
+      return
+    }
+
+    try {
+      const response = await resultAPI.submitAnswer(resultId, {
+        questionId: currentQuestionId,
+        userAnswer,
+        isMarkedForReview: markedForReview[currentQuestionId]
+      })
+
+      const isCorrect = response.data.data.isCorrect
+      const correctAnswer = response.data.data.correctAnswer
+      
+      setPracticeAnswers(prev => ({
+        ...prev,
+        [currentQuestionId]: {
+          isCorrect,
+          correctAnswer,
+          explanation: undefined // Reset explanation when checking new answer
+        }
+      }))
+      
+      // Reset explanation visibility
+      setShowExplanation(prev => ({
+        ...prev,
+        [currentQuestionId]: false
+      }))
+
+    } catch (error) {
+      toast.error('Failed to check answer')
+    }
+  }
+
+  const handleExplainAnswer = async () => {
+    if (!currentQuestionId || !resultId) return
+
+    // If we already have the explanation, just toggle visibility
+    if (practiceAnswers[currentQuestionId]?.explanation) {
+      setShowExplanation(prev => ({
+        ...prev,
+        [currentQuestionId]: !prev[currentQuestionId]
+      }))
+      return
+    }
+
+    setLoadingExplanation(prev => ({ ...prev, [currentQuestionId]: true }))
+
+    try {
+      const response = await resultAPI.explainAnswer(resultId, currentQuestionId)
+      
+      if (response.data.success) {
+        const explanationData = response.data.explanation
+        // Format explanation for display
+        setPracticeAnswers(prev => ({
+          ...prev,
+          [currentQuestionId]: {
+            ...prev[currentQuestionId],
+            explanation: explanationData
+          }
+        }))
+        
+        setShowExplanation(prev => ({
+          ...prev,
+          [currentQuestionId]: true
+        }))
+      }
+    } catch (error) {
+      toast.error('Failed to get explanation')
+    } finally {
+      setLoadingExplanation(prev => ({ ...prev, [currentQuestionId]: false }))
+    }
+  }
+
   const renderQuestionContent = () => {
     if (!currentQuestion || !currentQuestionId) {
       return <p className="text-muted-foreground">No question selected.</p>
@@ -368,7 +511,15 @@ const TakeExamPage: React.FC = () => {
                 <label
                   key={optionLabel || idx}
                   className={`flex items-start space-x-3 rounded-lg border p-3 cursor-pointer transition-colors ${
-                    answerValue === optionLabel ? 'border-blue-500 bg-blue-500/10' : 'border-border hover:border-blue-500/50'
+                    answerValue === optionLabel 
+                      ? isPracticeMode && practiceAnswers[currentQuestionId]
+                        ? practiceAnswers[currentQuestionId].isCorrect 
+                          ? 'border-green-500 bg-green-500/10'
+                          : 'border-red-500 bg-red-500/10'
+                        : 'border-blue-500 bg-blue-500/10' 
+                      : isPracticeMode && practiceAnswers[currentQuestionId] && !practiceAnswers[currentQuestionId].isCorrect && practiceAnswers[currentQuestionId].correctAnswer?.includes(optionLabel)
+                        ? 'border-green-500 bg-green-500/10 ring-2 ring-green-500/20'
+                        : 'border-border hover:border-blue-500/50'
                   }`}
                 >
                   <input
@@ -421,7 +572,15 @@ const TakeExamPage: React.FC = () => {
                 <label
                   key={optionLabel || idx}
                   className={`flex items-start space-x-3 rounded-lg border p-3 cursor-pointer transition-colors ${
-                    isSelected ? 'border-blue-500 bg-blue-500/10' : 'border-border hover:border-blue-500/50'
+                    isSelected 
+                      ? isPracticeMode && practiceAnswers[currentQuestionId]
+                        ? practiceAnswers[currentQuestionId].isCorrect
+                          ? 'border-green-500 bg-green-500/10'
+                          : 'border-red-500 bg-red-500/10'
+                        : 'border-blue-500 bg-blue-500/10'
+                      : isPracticeMode && practiceAnswers[currentQuestionId] && !practiceAnswers[currentQuestionId].isCorrect && practiceAnswers[currentQuestionId].correctAnswer?.includes(optionLabel)
+                        ? 'border-green-500 bg-green-500/10 ring-2 ring-green-500/20'
+                        : 'border-border hover:border-blue-500/50'
                   }`}
                 >
                   <input
@@ -545,11 +704,43 @@ const TakeExamPage: React.FC = () => {
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <Card>
-            <CardHeader className="space-y-1">
-              <CardTitle className="text-lg">Question {currentIndex + 1}</CardTitle>
-              <CardDescription className="text-sm text-muted-foreground">
-                Marks: {currentQuestion?.marks ?? 0}
-              </CardDescription>
+            <CardHeader className="bg-muted/50 px-6 py-3 border-b flex flex-row justify-between items-center space-y-0">
+              <div className="flex items-center gap-3 flex-wrap">
+                <CardTitle className="text-lg">Question {currentIndex + 1}</CardTitle>
+                <Badge variant="secondary">
+                  {currentQuestion?.marks ?? 0} Marks
+                </Badge>
+                {currentQuestion?.tags && currentQuestion.tags.length > 0 && (
+                  <div className="hidden sm:flex items-center gap-1">
+                    {!showTagsExpanded ? (
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                        onClick={() => setShowTagsExpanded(true)}
+                      >
+                        <Tag className="w-3 h-3 mr-1" /> Show Tags <ChevronDown className="w-3 h-3 ml-1" />
+                      </Button>
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        {currentQuestion.tags.map(tag => (
+                          <Badge key={tag} variant="outline" className="text-[10px] h-5 px-1.5">
+                            {tag}
+                          </Badge>
+                        ))}
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-6 w-6 p-0 ml-1"
+                          onClick={() => setShowTagsExpanded(false)}
+                        >
+                          <ChevronUp className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="text-foreground leading-relaxed">
@@ -574,20 +765,131 @@ const TakeExamPage: React.FC = () => {
                 </div>
               )}
               {renderQuestionContent()}
+
+              {isPracticeMode && practiceAnswers[currentQuestionId] && (
+                <div className={`mt-6 p-4 rounded-lg border ${practiceAnswers[currentQuestionId].isCorrect ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-900' : 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-900'}`}>
+                  <div className="flex items-center gap-2 mb-2">
+                    {practiceAnswers[currentQuestionId].isCorrect ? (
+                      <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
+                    ) : (
+                      <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
+                    )}
+                    <span className={`font-medium ${practiceAnswers[currentQuestionId].isCorrect ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'}`}>
+                      {practiceAnswers[currentQuestionId].isCorrect ? 'Correct Answer' : 'Incorrect Answer'}
+                    </span>
+                  </div>
+
+                  {!practiceAnswers[currentQuestionId].isCorrect && practiceAnswers[currentQuestionId].correctAnswer && (
+                     <div className="mb-4 text-sm">
+                        <span className="font-semibold text-foreground">Correct Answer: </span>
+                        <span className="text-green-600 dark:text-green-400 font-medium">
+                          {Array.isArray(practiceAnswers[currentQuestionId].correctAnswer) 
+                            ? practiceAnswers[currentQuestionId].correctAnswer.join(', ') 
+                            : practiceAnswers[currentQuestionId].correctAnswer}
+                        </span>
+                     </div>
+                  )}
+                  
+                  {showExplanation[currentQuestionId] && practiceAnswers[currentQuestionId].explanation && (
+                    <div className="mt-4 pt-4 border-t border-border space-y-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <BookOpen className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                        <h3 className="text-lg font-semibold">Explanation</h3>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div>
+                          <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wider mb-1">Overview</h4>
+                          <div className="text-sm text-foreground">
+                            <MathText text={practiceAnswers[currentQuestionId].explanation!.overview} block />
+                          </div>
+                        </div>
+
+                        <div>
+                          <h4 className={`font-medium text-sm uppercase tracking-wider mb-1 ${practiceAnswers[currentQuestionId].isCorrect ? 'text-green-600' : 'text-red-600'}`}>
+                            Why your answer is {practiceAnswers[currentQuestionId].isCorrect ? 'correct' : 'incorrect'}
+                          </h4>
+                          <div className="text-sm text-foreground">
+                            <MathText 
+                              text={practiceAnswers[currentQuestionId].isCorrect 
+                                ? practiceAnswers[currentQuestionId].explanation!.why_correct_answer 
+                                : practiceAnswers[currentQuestionId].explanation!.why_user_answer} 
+                              block 
+                            />
+                          </div>
+                        </div>
+
+                        {!practiceAnswers[currentQuestionId].isCorrect && (
+                          <div>
+                            <h4 className="font-medium text-sm text-green-600 uppercase tracking-wider mb-1">Correct Answer Logic</h4>
+                            <div className="text-sm text-foreground">
+                              <MathText text={practiceAnswers[currentQuestionId].explanation!.why_correct_answer} block />
+                            </div>
+                          </div>
+                        )}
+
+                        {practiceAnswers[currentQuestionId].explanation!.tips.length > 0 && (
+                          <div className="bg-blue-50 dark:bg-blue-900/10 p-3 rounded-md">
+                            <h4 className="font-medium text-sm text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-2">Tips</h4>
+                            <ul className="list-disc list-inside space-y-1">
+                              {practiceAnswers[currentQuestionId].explanation!.tips.map((tip, idx) => (
+                                <li key={idx} className="text-sm text-foreground">
+                                  <MathText text={tip} />
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
 
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex items-center space-x-2">
-              <Button
-                variant="outline"
-                onClick={() => handleToggleReview(currentQuestionId)}
-                disabled={!currentQuestionId}
-                className={markedForReview[currentQuestionId] ? 'border-yellow-400 text-yellow-600 dark:text-yellow-400' : ''}
-              >
-                <Flag className="mr-2 h-4 w-4" />
-                {markedForReview[currentQuestionId] ? 'Unmark Review' : 'Mark for Review'}
-              </Button>
+              {!isPracticeMode && (
+                <Button
+                  variant="outline"
+                  onClick={() => handleToggleReview(currentQuestionId)}
+                  disabled={!currentQuestionId}
+                  className={markedForReview[currentQuestionId] ? 'border-yellow-400 text-yellow-600 dark:text-yellow-400' : ''}
+                >
+                  <Flag className="mr-2 h-4 w-4" />
+                  {markedForReview[currentQuestionId] ? 'Unmark Review' : 'Mark for Review'}
+                </Button>
+              )}
+              
+              {isPracticeMode && (
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleCheckAnswer}
+                    disabled={!currentQuestionId || answers[currentQuestionId] === null || answers[currentQuestionId] === undefined}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    Check Answer
+                  </Button>
+                  {practiceAnswers[currentQuestionId] && (
+                    <Button
+                      variant="outline"
+                      onClick={handleExplainAnswer}
+                      disabled={loadingExplanation[currentQuestionId]}
+                    >
+                      {loadingExplanation[currentQuestionId] ? (
+                        <LoadingSpinner size="sm" />
+                      ) : (
+                        <>
+                          <BookOpen className="mr-2 h-4 w-4" />
+                          {showExplanation[currentQuestionId] ? 'Hide Explanation' : 'Explain Answer'}
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </div>
+              )}
+
               {submitAnswerMutation.isLoading && <span className="text-xs text-muted-foreground">Saving…</span>}
             </div>
             <div className="flex items-center space-x-2">

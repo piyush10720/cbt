@@ -214,6 +214,14 @@ const ExamSettingsForm: React.FC<ExamSettingsFormProps> = ({
                     disabled
                   />
                 </div>
+                <div className="flex items-center justify-between space-x-2">
+                  <Label htmlFor="allowPracticeMode" className="flex-1">Allow Practice Mode</Label>
+                  <Switch
+                    id="allowPracticeMode"
+                    checked={examSettings.settings.allowPracticeMode}
+                    onCheckedChange={(checked) => handleSettingsChange('allowPracticeMode', checked)}
+                  />
+                </div>
               </div>
             </CardContent>
           </Card>

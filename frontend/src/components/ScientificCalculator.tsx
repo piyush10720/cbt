@@ -324,7 +324,7 @@ const ScientificCalculator: React.FC<ScientificCalculatorProps> = ({ onClose }) 
       <div className="fixed bottom-4 right-4 z-50">
         <Button
           onClick={() => setIsMinimized(false)}
-          className="bg-blue-600 hover:bg-blue-700 shadow-lg"
+          className="bg-blue-600 hover:bg-blue-700 shadow-lg text-white"
         >
           <Maximize2 className="mr-2 h-4 w-4" />
           Calculator
@@ -335,15 +335,15 @@ const ScientificCalculator: React.FC<ScientificCalculatorProps> = ({ onClose }) 
 
   return (
     <div className="fixed bottom-4 right-4 z-50 max-w-md">
-      <Card className="shadow-2xl border-2 border-blue-200">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white">
+      <Card className="shadow-2xl border-2 border-blue-200 dark:border-blue-800 bg-background dark:bg-gray-900">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-gradient-to-r from-blue-500 to-blue-600 dark:from-blue-700 dark:to-blue-800 text-white">
           <CardTitle className="text-lg font-semibold">Scientific Calculator</CardTitle>
           <div className="flex space-x-1">
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setIsMinimized(true)}
-              className="h-6 w-6 p-0 hover:bg-blue-400"
+              className="h-6 w-6 p-0 hover:bg-blue-400 dark:hover:bg-blue-600 text-white"
             >
               <Minimize2 className="h-4 w-4" />
             </Button>
@@ -351,13 +351,13 @@ const ScientificCalculator: React.FC<ScientificCalculatorProps> = ({ onClose }) 
               variant="ghost"
               size="sm"
               onClick={onClose}
-              className="h-6 w-6 p-0 hover:bg-blue-400"
+              className="h-6 w-6 p-0 hover:bg-blue-400 dark:hover:bg-blue-600 text-white"
             >
               <X className="h-4 w-4" />
             </Button>
           </div>
         </CardHeader>
-        <CardContent className="p-4 bg-gray-50">
+        <CardContent className="p-4 bg-gray-50 dark:bg-gray-950">
           {/* Display */}
           <div className="mb-3 rounded-lg bg-gray-900 border-2 border-gray-700 shadow-inner">
             {/* Expression display (shows operation) */}
@@ -376,17 +376,17 @@ const ScientificCalculator: React.FC<ScientificCalculatorProps> = ({ onClose }) 
 
           {/* Mode Toggle */}
           <div className="mb-2 flex justify-between items-center">
-            <span className="text-xs text-gray-600">Angle Mode:</span>
+            <span className="text-xs text-gray-600 dark:text-gray-400">Angle Mode:</span>
             <Button
               variant="outline"
               size="sm"
               onClick={() => setIsDegrees(!isDegrees)}
-              className="text-xs h-6"
+              className="text-xs h-6 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-700"
             >
               {isDegrees ? 'DEG' : 'RAD'}
             </Button>
             {memory !== 0 && (
-              <span className="text-xs text-blue-600 font-semibold">M: {memory}</span>
+              <span className="text-xs text-blue-600 dark:text-blue-400 font-semibold">M: {memory}</span>
             )}
           </div>
 
@@ -398,7 +398,7 @@ const ScientificCalculator: React.FC<ScientificCalculatorProps> = ({ onClose }) 
                 variant="outline"
                 size="sm"
                 onClick={() => handleMemory(btn)}
-                className="text-xs h-7 bg-purple-50 hover:bg-purple-100 border-purple-200"
+                className="text-xs h-7 bg-purple-50 hover:bg-purple-100 border-purple-200 text-purple-900 dark:bg-purple-900/20 dark:hover:bg-purple-900/40 dark:border-purple-800 dark:text-purple-300"
               >
                 {btn}
               </Button>
@@ -413,7 +413,7 @@ const ScientificCalculator: React.FC<ScientificCalculatorProps> = ({ onClose }) 
                 variant="outline"
                 size="sm"
                 onClick={() => handleFunction(btn)}
-                className="text-xs h-8 bg-blue-50 hover:bg-blue-100 border-blue-200"
+                className="text-xs h-8 bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-900 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 dark:border-blue-800 dark:text-blue-300"
               >
                 {btn}
               </Button>
@@ -428,7 +428,7 @@ const ScientificCalculator: React.FC<ScientificCalculatorProps> = ({ onClose }) 
                 variant="outline"
                 size="sm"
                 onClick={() => handleFunction(btn)}
-                className="text-xs h-8 bg-blue-50 hover:bg-blue-100 border-blue-200"
+                className="text-xs h-8 bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-900 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 dark:border-blue-800 dark:text-blue-300"
               >
                 {btn}
               </Button>
@@ -441,7 +441,7 @@ const ScientificCalculator: React.FC<ScientificCalculatorProps> = ({ onClose }) 
               variant="outline"
               size="sm"
               onClick={() => handleFunction('sqrt')}
-              className="text-xs h-8 bg-green-50 hover:bg-green-100 border-green-200"
+              className="text-xs h-8 bg-green-50 hover:bg-green-100 border-green-200 text-green-900 dark:bg-green-900/20 dark:hover:bg-green-900/40 dark:border-green-800 dark:text-green-300"
             >
               √
             </Button>
@@ -449,7 +449,7 @@ const ScientificCalculator: React.FC<ScientificCalculatorProps> = ({ onClose }) 
               variant="outline"
               size="sm"
               onClick={() => handleFunction('square')}
-              className="text-xs h-8 bg-green-50 hover:bg-green-100 border-green-200"
+              className="text-xs h-8 bg-green-50 hover:bg-green-100 border-green-200 text-green-900 dark:bg-green-900/20 dark:hover:bg-green-900/40 dark:border-green-800 dark:text-green-300"
             >
               x²
             </Button>
@@ -457,7 +457,7 @@ const ScientificCalculator: React.FC<ScientificCalculatorProps> = ({ onClose }) 
               variant="outline"
               size="sm"
               onClick={() => handleFunction('cube')}
-              className="text-xs h-8 bg-green-50 hover:bg-green-100 border-green-200"
+              className="text-xs h-8 bg-green-50 hover:bg-green-100 border-green-200 text-green-900 dark:bg-green-900/20 dark:hover:bg-green-900/40 dark:border-green-800 dark:text-green-300"
             >
               x³
             </Button>
@@ -465,7 +465,7 @@ const ScientificCalculator: React.FC<ScientificCalculatorProps> = ({ onClose }) 
               variant="outline"
               size="sm"
               onClick={() => performOperation('^')}
-              className="text-xs h-8 bg-green-50 hover:bg-green-100 border-green-200"
+              className="text-xs h-8 bg-green-50 hover:bg-green-100 border-green-200 text-green-900 dark:bg-green-900/20 dark:hover:bg-green-900/40 dark:border-green-800 dark:text-green-300"
             >
               x^y
             </Button>
@@ -473,7 +473,7 @@ const ScientificCalculator: React.FC<ScientificCalculatorProps> = ({ onClose }) 
               variant="outline"
               size="sm"
               onClick={() => handleFunction('factorial')}
-              className="text-xs h-8 bg-green-50 hover:bg-green-100 border-green-200"
+              className="text-xs h-8 bg-green-50 hover:bg-green-100 border-green-200 text-green-900 dark:bg-green-900/20 dark:hover:bg-green-900/40 dark:border-green-800 dark:text-green-300"
             >
               n!
             </Button>
@@ -485,7 +485,7 @@ const ScientificCalculator: React.FC<ScientificCalculatorProps> = ({ onClose }) 
               variant="outline"
               size="sm"
               onClick={() => handleFunction('pi')}
-              className="text-xs h-8 bg-yellow-50 hover:bg-yellow-100 border-yellow-200"
+              className="text-xs h-8 bg-yellow-50 hover:bg-yellow-100 border-yellow-200 text-yellow-900 dark:bg-yellow-900/20 dark:hover:bg-yellow-900/40 dark:border-yellow-800 dark:text-yellow-300"
             >
               π
             </Button>
@@ -493,7 +493,7 @@ const ScientificCalculator: React.FC<ScientificCalculatorProps> = ({ onClose }) 
               variant="outline"
               size="sm"
               onClick={() => handleFunction('e')}
-              className="text-xs h-8 bg-yellow-50 hover:bg-yellow-100 border-yellow-200"
+              className="text-xs h-8 bg-yellow-50 hover:bg-yellow-100 border-yellow-200 text-yellow-900 dark:bg-yellow-900/20 dark:hover:bg-yellow-900/40 dark:border-yellow-800 dark:text-yellow-300"
             >
               e
             </Button>
@@ -501,7 +501,7 @@ const ScientificCalculator: React.FC<ScientificCalculatorProps> = ({ onClose }) 
               variant="outline"
               size="sm"
               onClick={() => handleFunction('exp')}
-              className="text-xs h-8 bg-yellow-50 hover:bg-yellow-100 border-yellow-200"
+              className="text-xs h-8 bg-yellow-50 hover:bg-yellow-100 border-yellow-200 text-yellow-900 dark:bg-yellow-900/20 dark:hover:bg-yellow-900/40 dark:border-yellow-800 dark:text-yellow-300"
             >
               exp
             </Button>
@@ -509,7 +509,7 @@ const ScientificCalculator: React.FC<ScientificCalculatorProps> = ({ onClose }) 
               variant="outline"
               size="sm"
               onClick={() => handleFunction('abs')}
-              className="text-xs h-8 bg-yellow-50 hover:bg-yellow-100 border-yellow-200"
+              className="text-xs h-8 bg-yellow-50 hover:bg-yellow-100 border-yellow-200 text-yellow-900 dark:bg-yellow-900/20 dark:hover:bg-yellow-900/40 dark:border-yellow-800 dark:text-yellow-300"
             >
               |x|
             </Button>
@@ -517,7 +517,7 @@ const ScientificCalculator: React.FC<ScientificCalculatorProps> = ({ onClose }) 
               variant="outline"
               size="sm"
               onClick={() => handleFunction('inverse')}
-              className="text-xs h-8 bg-yellow-50 hover:bg-yellow-100 border-yellow-200"
+              className="text-xs h-8 bg-yellow-50 hover:bg-yellow-100 border-yellow-200 text-yellow-900 dark:bg-yellow-900/20 dark:hover:bg-yellow-900/40 dark:border-yellow-800 dark:text-yellow-300"
             >
               1/x
             </Button>
@@ -528,28 +528,28 @@ const ScientificCalculator: React.FC<ScientificCalculatorProps> = ({ onClose }) 
             <Button
               variant="outline"
               onClick={handleClear}
-              className="bg-red-50 hover:bg-red-100 border-red-200 text-red-700 font-semibold"
+              className="bg-red-50 hover:bg-red-100 border-red-200 text-red-700 font-semibold dark:bg-red-900/20 dark:hover:bg-red-900/40 dark:border-red-800 dark:text-red-300"
             >
               C
             </Button>
             <Button
               variant="outline"
               onClick={handleClearEntry}
-              className="bg-orange-50 hover:bg-orange-100 border-orange-200 text-orange-700"
+              className="bg-orange-50 hover:bg-orange-100 border-orange-200 text-orange-700 dark:bg-orange-900/20 dark:hover:bg-orange-900/40 dark:border-orange-800 dark:text-orange-300"
             >
               CE
             </Button>
             <Button
               variant="outline"
               onClick={handleBackspace}
-              className="bg-orange-50 hover:bg-orange-100 border-orange-200 text-orange-700"
+              className="bg-orange-50 hover:bg-orange-100 border-orange-200 text-orange-700 dark:bg-orange-900/20 dark:hover:bg-orange-900/40 dark:border-orange-800 dark:text-orange-300"
             >
               ⌫
             </Button>
             <Button
               variant="outline"
               onClick={() => performOperation('/')}
-              className="bg-blue-100 hover:bg-blue-200 border-blue-300 font-semibold"
+              className="bg-blue-100 hover:bg-blue-200 border-blue-300 font-semibold text-blue-900 dark:bg-blue-800 dark:hover:bg-blue-700 dark:border-blue-600 dark:text-blue-100"
             >
               ÷
             </Button>
@@ -559,7 +559,7 @@ const ScientificCalculator: React.FC<ScientificCalculatorProps> = ({ onClose }) 
                 key={num}
                 variant="outline"
                 onClick={() => handleNumber(num)}
-                className="bg-white hover:bg-gray-100 font-semibold"
+                className="bg-white hover:bg-gray-100 font-semibold dark:bg-gray-800 dark:hover:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
               >
                 {num}
               </Button>
@@ -567,7 +567,7 @@ const ScientificCalculator: React.FC<ScientificCalculatorProps> = ({ onClose }) 
             <Button
               variant="outline"
               onClick={() => performOperation('*')}
-              className="bg-blue-100 hover:bg-blue-200 border-blue-300 font-semibold"
+              className="bg-blue-100 hover:bg-blue-200 border-blue-300 font-semibold text-blue-900 dark:bg-blue-800 dark:hover:bg-blue-700 dark:border-blue-600 dark:text-blue-100"
             >
               ×
             </Button>
@@ -577,7 +577,7 @@ const ScientificCalculator: React.FC<ScientificCalculatorProps> = ({ onClose }) 
                 key={num}
                 variant="outline"
                 onClick={() => handleNumber(num)}
-                className="bg-white hover:bg-gray-100 font-semibold"
+                className="bg-white hover:bg-gray-100 font-semibold dark:bg-gray-800 dark:hover:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
               >
                 {num}
               </Button>
@@ -585,7 +585,7 @@ const ScientificCalculator: React.FC<ScientificCalculatorProps> = ({ onClose }) 
             <Button
               variant="outline"
               onClick={() => performOperation('-')}
-              className="bg-blue-100 hover:bg-blue-200 border-blue-300 font-semibold"
+              className="bg-blue-100 hover:bg-blue-200 border-blue-300 font-semibold text-blue-900 dark:bg-blue-800 dark:hover:bg-blue-700 dark:border-blue-600 dark:text-blue-100"
             >
               −
             </Button>
@@ -595,7 +595,7 @@ const ScientificCalculator: React.FC<ScientificCalculatorProps> = ({ onClose }) 
                 key={num}
                 variant="outline"
                 onClick={() => handleNumber(num)}
-                className="bg-white hover:bg-gray-100 font-semibold"
+                className="bg-white hover:bg-gray-100 font-semibold dark:bg-gray-800 dark:hover:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
               >
                 {num}
               </Button>
@@ -603,7 +603,7 @@ const ScientificCalculator: React.FC<ScientificCalculatorProps> = ({ onClose }) 
             <Button
               variant="outline"
               onClick={() => performOperation('+')}
-              className="bg-blue-100 hover:bg-blue-200 border-blue-300 font-semibold"
+              className="bg-blue-100 hover:bg-blue-200 border-blue-300 font-semibold text-blue-900 dark:bg-blue-800 dark:hover:bg-blue-700 dark:border-blue-600 dark:text-blue-100"
             >
               +
             </Button>
@@ -611,34 +611,34 @@ const ScientificCalculator: React.FC<ScientificCalculatorProps> = ({ onClose }) 
             <Button
               variant="outline"
               onClick={() => handleFunction('negate')}
-              className="bg-white hover:bg-gray-100"
+              className="bg-white hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
             >
               ±
             </Button>
             <Button
               variant="outline"
               onClick={() => handleNumber('0')}
-              className="bg-white hover:bg-gray-100 font-semibold"
+              className="bg-white hover:bg-gray-100 font-semibold dark:bg-gray-800 dark:hover:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
             >
               0
             </Button>
             <Button
               variant="outline"
               onClick={handleDecimal}
-              className="bg-white hover:bg-gray-100"
+              className="bg-white hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
             >
               .
             </Button>
             <Button
               variant="outline"
               onClick={handleEquals}
-              className="bg-green-500 hover:bg-green-600 text-white font-bold"
+              className="bg-green-500 hover:bg-green-600 text-white font-bold dark:bg-green-600 dark:hover:bg-green-700 dark:border-green-500"
             >
               =
             </Button>
           </div>
 
-          <div className="mt-2 text-xs text-gray-500 text-center">
+          <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 text-center">
             Keyboard shortcuts: Numbers, +, -, *, /, Enter/=, Esc, Backspace
           </div>
         </CardContent>
