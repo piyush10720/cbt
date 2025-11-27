@@ -15,7 +15,7 @@ const SEO: React.FC<SEOProps> = ({
   description,
   name = 'CBT Platform',
   type = 'website',
-  image = '/og-image.png',
+  image = 'https://res.cloudinary.com/dwvy7icmo/image/upload/v1764256749/cbt-assets/og-image.jpg',
   url = window.location.href,
 }) => {
   const siteTitle = title ? `${title} | ${name}` : name;

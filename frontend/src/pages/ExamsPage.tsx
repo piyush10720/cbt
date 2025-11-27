@@ -387,7 +387,11 @@ const ExamsPage: React.FC = () => {
 
   return (
     <TooltipProvider>
-      <SEO title="Exams" description="Browse and manage your exams." />
+      <SEO 
+        title="Exams" 
+        description="Browse and manage your exams." 
+        image="https://res.cloudinary.com/dwvy7icmo/image/upload/v1764256549/cbt-assets/cbt-exam-library.png"
+      />
       <div className="flex h-[calc(100vh-64px)] bg-background">
         {/* Sidebar */}
         <div className="w-72 border-r bg-muted/30 flex flex-col">

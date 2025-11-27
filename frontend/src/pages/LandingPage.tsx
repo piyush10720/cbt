@@ -3,10 +3,15 @@ import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { ArrowRight, Shield, FileText, BarChart3, Lock, Clock, Brain } from 'lucide-react'
 import { ThemeToggle } from '@/components/ThemeToggle'
+import SEO from '@/components/SEO'
 
 const LandingPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-background text-foreground selection:bg-primary/30">
+      <SEO 
+        title="Home" 
+        image="https://res.cloudinary.com/dwvy7icmo/image/upload/v1764256745/cbt-assets/cbt.png"
+      />
       {/* Navbar */}
       <nav className="fixed w-full z-50 top-0 start-0 border-b border-border bg-background/80 backdrop-blur-md">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between px-4 py-3">

@@ -201,6 +201,7 @@ const App: React.FC = () => {
                       secondary: '#fff',
                     },
                   },
+                  
                 }}
               />
             </div>

@@ -339,9 +339,10 @@ export const examAPI = {
     api.delete(`/exam/${id}`),
 
   startExam: (
-    id: string
+    id: string,
+    mode?: 'practice' | 'exam'
   ): Promise<AxiosResponse<{ data: { resultId: string; exam: Exam; attempt: any }; message: string }>> =>
-    api.post(`/exam/${id}/start`),
+    api.post(`/exam/${id}/start`, { mode }),
 
   mergeExams: (data: {
     examIds: string[]

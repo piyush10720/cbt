@@ -84,7 +84,11 @@ const DashboardPage = () => {
       animate="show"
       className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8"
     >
-      <SEO title="Dashboard" description="View your recent exams and performance statistics." />
+      <SEO 
+        title="Dashboard" 
+        description="View your recent exams and performance statistics." 
+        image="https://res.cloudinary.com/dwvy7icmo/image/upload/v1764256697/cbt-assets/cbt-teacher-dashboard.png"
+      />
       {/* Welcome Section */}
       <motion.div variants={item} className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-primary to-purple-600 p-8 text-white shadow-xl">
         <div className="relative z-10">

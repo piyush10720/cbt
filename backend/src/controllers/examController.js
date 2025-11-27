@@ -539,6 +539,7 @@ const deleteExam = async (req, res) => {
 const startExam = async (req, res) => {
   try {
     const { id } = req.params;
+    const { mode } = req.body;
 
     const exam = await Exam.findById(id).populate('questions');
 
@@ -616,7 +617,9 @@ const startExam = async (req, res) => {
         marks: question.marks,
         order: question.order,
         tags: question.tags || [],
-        diagram: question.diagram || null
+        tags: question.tags || [],
+        diagram: question.diagram || null,
+        ...(mode === 'practice' && exam.settings.allowPracticeMode ? { correct: question.correct } : {})
       }));
 
       // Randomize questions if enabled (should match original order if possible, but for now we re-randomize or keep exam order)
@@ -682,7 +685,9 @@ const startExam = async (req, res) => {
       marks: question.marks,
       order: question.order,
       tags: question.tags || [],
-      diagram: question.diagram || null
+      tags: question.tags || [],
+      diagram: question.diagram || null,
+      ...(mode === 'practice' && exam.settings.allowPracticeMode ? { correct: question.correct } : {})
     }));
 
     // Randomize questions if enabled
