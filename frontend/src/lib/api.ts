@@ -680,7 +680,7 @@ export const bookmarkAPI = {
   deleteBookmark: (id: string): Promise<AxiosResponse<{ message: string }>> =>
     api.delete(`/bookmarks/${id}`),
 
-  checkBookmarks: (resultId: string): Promise<AxiosResponse<{ bookmarkedQuestions: string[] }>> =>
+  checkBookmarks: (resultId: string): Promise<AxiosResponse<{ bookmarkedQuestions: Array<{ questionId: string; bookmarkId: string; notes?: string }> }>> =>
     api.get(`/bookmarks/check/${resultId}`),
 }
 

@@ -90,7 +90,7 @@ const ResultDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { user } = useAuth()
-  const [bookmarkedQuestions, setBookmarkedQuestions] = useState<Set<string>>(new Set())
+  const [bookmarkedQuestions, setBookmarkedQuestions] = useState<Record<string, { bookmarkId: string; notes?: string }>>({})
 
   const {
     data,
@@ -126,7 +126,11 @@ const ResultDetailsPage: React.FC = () => {
       if (!id) return
       try {
         const response = await bookmarkAPI.checkBookmarks(id)
-        setBookmarkedQuestions(new Set(response.data.bookmarkedQuestions))
+        const bookmarkMap: Record<string, { bookmarkId: string; notes?: string }> = {}
+        response.data.bookmarkedQuestions.forEach(b => {
+          bookmarkMap[b.questionId] = { bookmarkId: b.bookmarkId, notes: b.notes }
+        })
+        setBookmarkedQuestions(bookmarkMap)
       } catch (error) {
         console.error('Failed to fetch bookmarks:', error)
       }
@@ -140,17 +144,20 @@ const ResultDetailsPage: React.FC = () => {
     },
     {
       onSuccess: (response, variables) => {
-        const { bookmarked } = response.data
+        const { bookmarked, bookmark } = response.data
         setBookmarkedQuestions(prev => {
-          const newSet = new Set(prev)
-          if (bookmarked) {
-            newSet.add(variables.questionId)
+          const newMap = { ...prev }
+          if (bookmarked && bookmark) {
+            newMap[variables.questionId] = { 
+              bookmarkId: bookmark._id,
+              notes: bookmark.notes 
+            }
             toast.success('Question bookmarked!')
           } else {
-            newSet.delete(variables.questionId)
+            delete newMap[variables.questionId]
             toast.success('Bookmark removed!')
           }
-          return newSet
+          return newMap
         })
       },
       onError: (err: any) => {
@@ -163,6 +170,35 @@ const ResultDetailsPage: React.FC = () => {
   const handleToggleBookmark = (questionId: string) => {
     if (!id) return
     toggleBookmarkMutation.mutate({ questionId, resultId: id })
+  }
+
+  // Update bookmark mutation
+  const updateBookmarkMutation = useMutation(
+    async ({ id, notes }: { id: string; notes: string }) => {
+      return bookmarkAPI.updateBookmark(id, { notes })
+    },
+    {
+      onSuccess: () => {
+        toast.success('Note updated successfully')
+      },
+      onError: (err: any) => {
+        const message = err?.response?.data?.message || 'Failed to update note'
+        toast.error(message)
+      }
+    }
+  )
+
+  const handleUpdateNote = (questionId: string, notes: string) => {
+    const bookmark = bookmarkedQuestions[questionId]
+    if (!bookmark) return
+
+    // Optimistic update
+    setBookmarkedQuestions(prev => ({
+      ...prev,
+      [questionId]: { ...prev[questionId], notes }
+    }))
+
+    updateBookmarkMutation.mutate({ id: bookmark.bookmarkId, notes })
   }
 
   // Manual Grading Logic - state removed as we use QuestionCard's built-in UI
@@ -439,7 +475,7 @@ const ResultDetailsPage: React.FC = () => {
                       userAnswer={answer.userAnswer}
                       correctAnswer={question?.correct || answer.correctAnswer} // Pass correct answer array
                       isCorrect={isCorrect}
-                      isBookmarked={bookmarkedQuestions.has(answer.questionId)}
+                      isBookmarked={!!bookmarkedQuestions[answer.questionId]}
                       onToggleBookmark={() => handleToggleBookmark(answer.questionId)}
                       
                       // Manual Grading
@@ -455,6 +491,11 @@ const ResultDetailsPage: React.FC = () => {
                       // AI Explanation
                       onExplain={() => handleExplain(answer.questionId)}
                       isExplaining={explanations[answer.questionId]?.loading}
+
+                      // Note functionality
+                      note={bookmarkedQuestions[answer.questionId]?.notes}
+                      onNoteChange={(note) => handleUpdateNote(answer.questionId, note)}
+                      isNoteEnabled={!!bookmarkedQuestions[answer.questionId]}
                     />
                   </div>
                 )

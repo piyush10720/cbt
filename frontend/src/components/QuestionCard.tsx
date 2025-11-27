@@ -17,11 +17,22 @@ import {
   Tag, 
   ChevronDown, 
   ChevronUp,
-  Lightbulb
+  Lightbulb,
+  StickyNote
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { getOptionLabel, getOptionText, getOptionDiagramUrl } from '@/utils/questionHelpers'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
 
 export interface QuestionCardProps {
   question: {
@@ -55,6 +66,11 @@ export interface QuestionCardProps {
   // AI Explanation
   onExplain?: () => void
   isExplaining?: boolean
+
+  // Note functionality
+  note?: string
+  onNoteChange?: (note: string) => void
+  isNoteEnabled?: boolean
 }
 
 const QuestionCard: React.FC<QuestionCardProps> = ({
@@ -72,11 +88,18 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
   showExplanation = true,
   showTags = true,
   onExplain,
-  isExplaining = false
+  isExplaining = false,
+  note,
+  onNoteChange,
+  isNoteEnabled = false
 }) => {
   const [isEditingGrade, setIsEditingGrade] = useState(false)
   const [gradeInput, setGradeInput] = useState(String(marksAwarded || 0))
   const [showTagsExpanded, setShowTagsExpanded] = useState(false)
+  
+  // Note state
+  const [isNoteModalOpen, setIsNoteModalOpen] = useState(false)
+  const [noteInput, setNoteInput] = useState(note || '')
 
   const handleSaveGrade = () => {
     const newMarks = parseFloat(gradeInput)
@@ -91,6 +114,10 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
 
     onGradeChange?.(newMarks)
     setIsEditingGrade(false)
+  }
+
+  const handleSaveNote = () => {
+    onNoteChange?.(noteInput)
   }
 
   const getOptionStatus = (option: any, index: number) => {
@@ -168,12 +195,12 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
 
   return (
     <Card className={cn(
-      "overflow-hidden transition-shadow hover:shadow-md",
+      "transition-shadow hover:shadow-md",
       showUserAnswer && isCorrect === true && "border-l-4 border-l-success",
       showUserAnswer && isCorrect === false && "border-l-4 border-l-destructive",
       showUserAnswer && isCorrect === undefined && "border-l-4 border-l-muted"
     )}>
-      <CardHeader className="bg-muted/50 px-6 py-3 border-b flex flex-row justify-between items-center space-y-0">
+      <CardHeader className="bg-muted/50 px-6 py-3 border-b flex flex-row justify-between items-center space-y-0 rounded-t-lg">
         <div className="flex items-center gap-3">
           <Badge variant="outline" className="bg-background font-mono">
             {question.type.replace(/_/g, ' ').toUpperCase()}
@@ -266,26 +293,50 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
           )}
           
           {onToggleBookmark && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
+            <div className="flex items-center group">
+              {/* Add/Edit Note Button - Slides in on Hover */}
+              <div className="grid grid-rows-[0fr] group-hover:grid-rows-[1fr] transition-[grid-template-rows] duration-200 ease-out">
+                <div className="overflow-hidden">
                   <Button
                     variant="ghost"
-                    size="icon"
-                    onClick={onToggleBookmark}
+                    size="sm"
+                    onClick={() => {
+                      setNoteInput(note || '')
+                      setIsNoteModalOpen(true)
+                    }}
                     className={cn(
-                      "h-8 w-8 transition-colors",
-                      isBookmarked ? "text-brand hover:text-brand hover:bg-brand/10" : "text-muted-foreground hover:text-foreground"
+                      "h-8 text-xs font-medium gap-1.5 mr-1",
+                      note ? "text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50" : "text-muted-foreground hover:text-foreground"
                     )}
                   >
-                    {isBookmarked ? <BookmarkCheck className="w-5 h-5" /> : <Bookmark className="w-5 h-5" />}
+                    <StickyNote className={cn("w-3.5 h-3.5", note ? "fill-current" : "")} />
+                    {note ? 'Edit Note' : 'Add Note'}
                   </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{isBookmarked ? 'Remove Bookmark' : 'Bookmark Question'}</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+                </div>
+              </div>
+
+              {/* Bookmark Button */}
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={onToggleBookmark}
+                      className={cn(
+                        "h-8 w-8 transition-colors",
+                        isBookmarked ? "text-brand hover:text-brand hover:bg-brand/10" : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      {isBookmarked ? <BookmarkCheck className="w-5 h-5" /> : <Bookmark className="w-5 h-5" />}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{isBookmarked ? 'Remove Bookmark' : 'Bookmark Question'}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
           )}
         </div>
       </CardHeader>
@@ -338,6 +389,65 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
              )}
           </div>
         )}
+
+        {/* Note Display (Only if note exists) */}
+        {isNoteEnabled && note && (
+          <div className="mt-6 border-t pt-4">
+            <div className="bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-900/30 rounded-lg p-4">
+              <div className="flex justify-between items-start mb-2">
+                <h4 className="text-sm font-semibold text-yellow-800 dark:text-yellow-200 flex items-center gap-2">
+                  <StickyNote className="w-4 h-4" />
+                  My Notes
+                </h4>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-6 text-xs hover:bg-yellow-100 dark:hover:bg-yellow-900/30"
+                  onClick={() => {
+                    setNoteInput(note)
+                    setIsNoteModalOpen(true)
+                  }}
+                >
+                  Edit
+                </Button>
+              </div>
+              <div className="text-sm text-yellow-900 dark:text-yellow-100 whitespace-pre-wrap">
+                {note}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Note Modal */}
+        <Dialog open={isNoteModalOpen} onOpenChange={setIsNoteModalOpen}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>{note ? 'Edit Note' : 'Add Note'}</DialogTitle>
+              <DialogDescription>
+                Add a personal note to this question for future reference.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="note">Note</Label>
+                <Textarea
+                  id="note"
+                  value={noteInput}
+                  onChange={(e) => setNoteInput(e.target.value)}
+                  placeholder="Type your note here..."
+                  className="min-h-[100px]"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsNoteModalOpen(false)}>Cancel</Button>
+              <Button onClick={() => {
+                handleSaveNote()
+                setIsNoteModalOpen(false)
+              }}>Save Note</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Explanation */}
         {showExplanation && (

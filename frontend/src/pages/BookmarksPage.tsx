@@ -91,6 +91,23 @@ const BookmarksPage: React.FC = () => {
     }
   )
 
+  // Update bookmark mutation
+  const updateBookmarkMutation = useMutation(
+    async ({ id, notes }: { id: string; notes: string }) => {
+      return bookmarkAPI.updateBookmark(id, { notes })
+    },
+    {
+      onSuccess: () => {
+        toast.success('Note updated successfully')
+        queryClient.invalidateQueries('bookmarks')
+      },
+      onError: (err: any) => {
+        const message = err?.response?.data?.message || 'Failed to update note'
+        toast.error(message)
+      }
+    }
+  )
+
   const folders = foldersData?.folders || []
   const bookmarks = bookmarksData?.bookmarks || []
 
@@ -98,6 +115,10 @@ const BookmarksPage: React.FC = () => {
     if (window.confirm('Are you sure you want to delete this bookmark?')) {
       deleteBookmarkMutation.mutate(bookmarkId)
     }
+  }
+
+  const handleUpdateNote = (bookmarkId: string, notes: string) => {
+    updateBookmarkMutation.mutate({ id: bookmarkId, notes })
   }
 
   const isLoading = foldersLoading || bookmarksLoading
@@ -298,6 +319,9 @@ const BookmarksPage: React.FC = () => {
                           showUserAnswer={true}
                           showExplanation={!!question?.explanation}
                           showTags={true}
+                          note={bookmark.notes}
+                          onNoteChange={(note) => handleUpdateNote(bookmark._id, note)}
+                          isNoteEnabled={true}
                         />
                         
                         <div className="mt-2 flex justify-end px-1">

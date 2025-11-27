@@ -8,13 +8,25 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import { formatTime } from '@/lib/utils'
-import { AlertCircle, CheckCircle, ChevronLeft, ChevronRight, Clock, Flag, Send, Calculator, BookOpen, Tag, ChevronDown, ChevronUp, Bookmark, Upload, X } from 'lucide-react'
+import { AlertCircle, CheckCircle, ChevronLeft, ChevronRight, Clock, Flag, Send, Calculator, BookOpen, Tag, ChevronDown, ChevronUp, Bookmark, BookmarkCheck, Upload, X, StickyNote } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { getOptionLabel, getOptionText, hasOptionDiagram, getOptionDiagramUrl } from '@/utils/questionHelpers'
 import ImageModal from '@/components/ImageModal'
 import ScientificCalculator from '@/components/ScientificCalculator'
 import MathText from '@/components/MathText'
 import SEO from '@/components/SEO'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
+import { cn } from '@/lib/utils'
 
 type StartExamResponse = {
   message: string
@@ -106,10 +118,43 @@ const TakeExamPage: React.FC = () => {
   const [showExplanation, setShowExplanation] = useState<Record<string, boolean>>({})
   const [loadingExplanation, setLoadingExplanation] = useState<Record<string, boolean>>({})
   const [showTagsExpanded, setShowTagsExpanded] = useState(false)
-  const [bookmarkedQuestions, setBookmarkedQuestions] = useState<Set<string>>(new Set())
+  const [bookmarkedQuestions, setBookmarkedQuestions] = useState<Record<string, { bookmarkId: string; notes?: string }>>({})
   const [loadingBookmark, setLoadingBookmark] = useState<Record<string, boolean>>({})
   const [uploadingImage, setUploadingImage] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  
+  // Note modal state
+  const [isNoteModalOpen, setIsNoteModalOpen] = useState(false)
+  const [noteInput, setNoteInput] = useState('')
+
+  // Update bookmark mutation
+  const updateBookmarkMutation = useMutation(
+    async ({ id, notes }: { id: string; notes: string }) => {
+      return bookmarkAPI.updateBookmark(id, { notes })
+    },
+    {
+      onSuccess: () => {
+        toast.success('Note updated successfully')
+      },
+      onError: (err: any) => {
+        const message = err?.response?.data?.message || 'Failed to update note'
+        toast.error(message)
+      }
+    }
+  )
+
+  const handleUpdateNote = (questionId: string, notes: string) => {
+    const bookmark = bookmarkedQuestions[questionId]
+    if (!bookmark) return
+
+    // Optimistic update
+    setBookmarkedQuestions(prev => ({
+      ...prev,
+      [questionId]: { ...prev[questionId], notes }
+    }))
+
+    updateBookmarkMutation.mutate({ id: bookmark.bookmarkId, notes })
+  }
 
   const {
     data,
@@ -228,7 +273,11 @@ const TakeExamPage: React.FC = () => {
     const fetchBookmarks = async () => {
       try {
         const response = await bookmarkAPI.checkBookmarks(resultId)
-        setBookmarkedQuestions(new Set(response.data.bookmarkedQuestions))
+        const bookmarkMap: Record<string, { bookmarkId: string; notes?: string }> = {}
+        response.data.bookmarkedQuestions.forEach(b => {
+          bookmarkMap[b.questionId] = { bookmarkId: b.bookmarkId, notes: b.notes }
+        })
+        setBookmarkedQuestions(bookmarkMap)
       } catch (error) {
         console.error('Failed to fetch bookmarks', error)
       }
@@ -559,15 +608,18 @@ const TakeExamPage: React.FC = () => {
       })
       
       setBookmarkedQuestions(prev => {
-        const newSet = new Set(prev)
-        if (response.data.bookmarked) {
-          newSet.add(currentQuestionId)
+        const newMap = { ...prev }
+        if (response.data.bookmarked && response.data.bookmark) {
+          newMap[currentQuestionId] = { 
+            bookmarkId: response.data.bookmark._id,
+            notes: response.data.bookmark.notes 
+          }
           toast.success('Question bookmarked')
         } else {
-          newSet.delete(currentQuestionId)
+          delete newMap[currentQuestionId]
           toast.success('Bookmark removed')
         }
-        return newSet
+        return newMap
       })
     } catch (error) {
       toast.error('Failed to update bookmark')
@@ -723,19 +775,56 @@ const TakeExamPage: React.FC = () => {
                     {exam.settings.negativeMarking && ' (Negative marking applied)'}
                   </CardDescription>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleToggleBookmark}
-                  disabled={loadingBookmark[currentQuestionId]}
-                  className={bookmarkedQuestions.has(currentQuestionId) ? 'text-yellow-500 hover:text-yellow-600' : 'text-muted-foreground hover:text-foreground'}
-                >
-                  {loadingBookmark[currentQuestionId] ? (
-                    <LoadingSpinner size="sm" />
-                  ) : (
-                    <Bookmark className={`h-5 w-5 ${bookmarkedQuestions.has(currentQuestionId) ? 'fill-current' : ''}`} />
-                  )}
-                </Button>
+
+                <div className="flex items-center group">
+                  {/* Add/Edit Note Button - Slides in on Hover */}
+                  <div className="grid grid-rows-[0fr] group-hover:grid-rows-[1fr] transition-[grid-template-rows] duration-200 ease-out">
+                    <div className="overflow-hidden">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setNoteInput(bookmarkedQuestions[currentQuestionId]?.notes || '')
+                          setIsNoteModalOpen(true)
+                        }}
+                        className={cn(
+                          "h-8 text-xs font-medium gap-1.5 mr-1",
+                          bookmarkedQuestions[currentQuestionId]?.notes ? "text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50" : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        <StickyNote className={cn("w-3.5 h-3.5", bookmarkedQuestions[currentQuestionId]?.notes ? "fill-current" : "")} />
+                        {bookmarkedQuestions[currentQuestionId]?.notes ? 'Edit Note' : 'Add Note'}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Bookmark Button */}
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={handleToggleBookmark}
+                          disabled={loadingBookmark[currentQuestionId]}
+                          className={cn(
+                            "h-8 w-8 transition-colors",
+                            bookmarkedQuestions[currentQuestionId] ? "text-yellow-500 hover:text-yellow-600" : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          {loadingBookmark[currentQuestionId] ? (
+                            <LoadingSpinner size="sm" />
+                          ) : (
+                            bookmarkedQuestions[currentQuestionId] ? <BookmarkCheck className="h-5 w-5" /> : <Bookmark className="h-5 w-5" />
+                          )}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>{bookmarkedQuestions[currentQuestionId] ? 'Remove Bookmark' : 'Bookmark Question'}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="prose dark:prose-invert max-w-none">
@@ -1006,7 +1095,66 @@ const TakeExamPage: React.FC = () => {
                   </div>
                 )}
               </CardContent>
+              
+              {/* Note Display (Only if note exists) */}
+              {bookmarkedQuestions[currentQuestionId]?.notes && (
+                <div className="px-6 pb-6 pt-0">
+                  <div className="bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-900/30 rounded-lg p-4">
+                    <div className="flex justify-between items-start mb-2">
+                      <h4 className="text-sm font-semibold text-yellow-800 dark:text-yellow-200 flex items-center gap-2">
+                        <StickyNote className="w-4 h-4" />
+                        My Notes
+                      </h4>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-6 text-xs hover:bg-yellow-100 dark:hover:bg-yellow-900/30"
+                        onClick={() => {
+                          setNoteInput(bookmarkedQuestions[currentQuestionId]?.notes || '')
+                          setIsNoteModalOpen(true)
+                        }}
+                      >
+                        Edit
+                      </Button>
+                    </div>
+                    <div className="text-sm text-yellow-900 dark:text-yellow-100 whitespace-pre-wrap">
+                      {bookmarkedQuestions[currentQuestionId]?.notes}
+                    </div>
+                  </div>
+                </div>
+              )}
             </Card>
+
+            {/* Note Modal */}
+            <Dialog open={isNoteModalOpen} onOpenChange={setIsNoteModalOpen}>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle>{bookmarkedQuestions[currentQuestionId]?.notes ? 'Edit Note' : 'Add Note'}</DialogTitle>
+                  <DialogDescription>
+                    Add a personal note to this question for future reference.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="note">Note</Label>
+                    <Textarea
+                      id="note"
+                      value={noteInput}
+                      onChange={(e) => setNoteInput(e.target.value)}
+                      placeholder="Type your note here..."
+                      className="min-h-[100px]"
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsNoteModalOpen(false)}>Cancel</Button>
+                  <Button onClick={() => {
+                    handleUpdateNote(currentQuestionId, noteInput)
+                    setIsNoteModalOpen(false)
+                  }}>Save Note</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
 
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="flex items-center space-x-2">
@@ -1164,4 +1312,4 @@ const TakeExamPage: React.FC = () => {
   )
 }
 
-export default TakeExamPage
+export default TakeExamPage;
