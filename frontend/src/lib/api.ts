@@ -291,7 +291,14 @@ export const examAPI = {
     sortBy?: string
     sortOrder?: string
     folderId?: string
-  }): Promise<AxiosResponse<{ exams: Exam[]; pagination: any }>> =>
+  }): Promise<AxiosResponse<{ 
+    exams: Exam[]; 
+    pagination: any;
+    stats?: {
+      totalPublished: number;
+      totalDrafts: number;
+    }
+  }>> =>
     api.get('/exam', { params }),
 
   getExamById: (

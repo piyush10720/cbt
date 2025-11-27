@@ -9,8 +9,25 @@ const imageCropper = require('../utils/imageCropper')
  */
 class GeminiParser {
   constructor() {
-    // Get API key from environment variables
-    this.apiKey = process.env.GEMINI_API_KEY;
+    // Get API keys from environment variables (comma-separated or JSON array)
+    const rawKeys = process.env.GEMINI_API_KEY;
+    this.apiKeys = [];
+    
+    if (rawKeys) {
+      if (rawKeys.startsWith('[') && rawKeys.endsWith(']')) {
+        try {
+          this.apiKeys = JSON.parse(rawKeys);
+        } catch (e) {
+          console.warn('Failed to parse GEMINI_API_KEY as JSON, treating as string');
+          this.apiKeys = [rawKeys];
+        }
+      } else {
+        this.apiKeys = rawKeys.split(',').map(k => k.trim()).filter(k => k.length > 0);
+      }
+    }
+    
+    this.currentKeyIndex = 0;
+    this.apiKey = this.apiKeys[0]; // For backward compatibility/logging
     
     // Use cheaper model for text extraction (Phase 1)
     this.model = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
@@ -38,15 +55,29 @@ class GeminiParser {
       api_secret: process.env.CLOUDINARY_API_SECRET
     });
 
-    if (!this.apiKey) {
+    if (this.apiKeys.length === 0) {
       console.warn('GEMINI_API_KEY not found in environment variables');
     }
     
-    console.log(`✅ GeminiParser initialized`);
+    console.log(`✅ GeminiParser initialized with ${this.apiKeys.length} API key(s)`);
     console.log(`   📝 Text model: ${this.model}`);
     console.log(`   🎨 Vision model: ${this.visionModel}`);
     console.log(`   ⚙️  Concurrency: ${this.maxConcurrentRequests} parallel requests`);
     console.log(`   ⏱️  Timeout: ${this.requestTimeout / 1000}s`);
+  }
+
+  /**
+   * Get the next API key in round-robin fashion
+   * @returns {string} - The API key to use
+   */
+  getNextApiKey() {
+    if (this.apiKeys.length === 0) {
+      return null;
+    }
+    
+    const key = this.apiKeys[this.currentKeyIndex];
+    this.currentKeyIndex = (this.currentKeyIndex + 1) % this.apiKeys.length;
+    return key;
   }
 
   /**
@@ -57,7 +88,7 @@ class GeminiParser {
    * @returns {Promise<Object>} - A promise that resolves to a structured object containing the parsed questions.
    */
   async parseQuestionPaper(questionPaperBuffer, answerKeyBuffer = null) {
-    if (!this.apiKey || this.apiKey === 'your-gemini-api-key-here') {
+    if (this.apiKeys.length === 0 || this.apiKeys[0] === 'your-gemini-api-key-here') {
       throw new Error('Gemini API key not configured. Please set GEMINI_API_KEY in your environment variables.');
     }
 
@@ -426,7 +457,8 @@ For Descriptive questions:
         {
           headers: {
             'Content-Type': 'application/json',
-            'x-goog-api-key': this.apiKey
+            'Content-Type': 'application/json',
+            'x-goog-api-key': this.getNextApiKey()
           },
           timeout: this.requestTimeout, // Allow longer processing time for large PDFs
           maxBodyLength: Infinity,
@@ -612,7 +644,7 @@ For Descriptive questions:
    */
   async testConnection() {
     try {
-      if (!this.apiKey || this.apiKey === 'your-gemini-api-key-here') {
+      if (this.apiKeys.length === 0 || this.apiKeys[0] === 'your-gemini-api-key-here') {
         return { success: false, error: 'API key not configured' };
       }
 
@@ -629,7 +661,8 @@ For Descriptive questions:
         {
           headers: {
             'Content-Type': 'application/json',
-            'x-goog-api-key': this.apiKey
+            'Content-Type': 'application/json',
+            'x-goog-api-key': this.getNextApiKey()
           },
           timeout: Math.min(this.requestTimeout, 10000)
         }
@@ -930,7 +963,8 @@ Return bounding boxes now:`
         {
           headers: {
             'Content-Type': 'application/json',
-            'x-goog-api-key': this.apiKey
+            'Content-Type': 'application/json',
+            'x-goog-api-key': this.getNextApiKey()
           },
           timeout: this.requestTimeout,
           maxBodyLength: Infinity,
@@ -1078,7 +1112,8 @@ Generate the images now and encode them as base64:`
         {
           headers: {
             'Content-Type': 'application/json',
-            'x-goog-api-key': this.apiKey
+            'Content-Type': 'application/json',
+            'x-goog-api-key': this.getNextApiKey()
           },
           timeout: this.requestTimeout,
           maxBodyLength: Infinity,

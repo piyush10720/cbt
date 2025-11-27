@@ -204,6 +204,10 @@ const getExams = async (req, res) => {
         pages: Math.ceil(total / parseInt(limit)),
         total,
         limit: parseInt(limit)
+      },
+      stats: {
+        totalPublished: await Exam.countDocuments({ ...filter, isPublished: true }),
+        totalDrafts: await Exam.countDocuments({ ...filter, isPublished: false })
       }
     });
 

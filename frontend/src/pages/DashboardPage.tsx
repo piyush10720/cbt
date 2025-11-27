@@ -167,7 +167,7 @@ const DashboardPage = () => {
             />
             <StatsCard 
               title="Published" 
-              value={myExamsData?.data.exams.filter(e => e.isPublished).length || 0} 
+              value={myExamsData?.data.stats?.totalPublished || 0} 
               description="Active exams" 
               icon={BookOpen} 
               color="text-green-600 dark:text-green-400"
@@ -175,7 +175,7 @@ const DashboardPage = () => {
             />
             <StatsCard 
               title="Drafts" 
-              value={myExamsData?.data.exams.filter(e => !e.isPublished).length || 0} 
+              value={myExamsData?.data.stats?.totalDrafts || 0} 
               description="Pending publication" 
               icon={Clock} 
               color="text-amber-600 dark:text-amber-400"
