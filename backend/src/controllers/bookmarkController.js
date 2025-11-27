@@ -275,12 +275,16 @@ const checkBookmarks = async (req, res) => {
     const { resultId } = req.params;
     const userId = req.user.id;
 
-    const bookmarks = await Bookmark.find({ userId, resultId }).select('questionId');
+    const bookmarks = await Bookmark.find({ userId, resultId }).select('questionId notes');
     
-    const bookmarkedQuestionIds = bookmarks.map(b => b.questionId.toString());
+    const bookmarkedQuestions = bookmarks.map(b => ({
+      questionId: b.questionId.toString(),
+      bookmarkId: b._id,
+      notes: b.notes
+    }));
 
     res.json({
-      bookmarkedQuestions: bookmarkedQuestionIds
+      bookmarkedQuestions
     });
 
   } catch (error) {
