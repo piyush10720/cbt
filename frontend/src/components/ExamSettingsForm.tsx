@@ -283,9 +283,9 @@ const ExamSettingsForm: React.FC<ExamSettingsFormProps> = ({
                     <SelectValue placeholder="Select access type" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="private">Private (Only Creator)</SelectItem>
+                    <SelectItem value="owner">Private (Only Creator)</SelectItem>
                     <SelectItem value="public">Public (Any Logged-in User)</SelectItem>
-                    <SelectItem value="restricted">Restricted (Invite Only)</SelectItem>
+                    <SelectItem value="invited">Restricted (Invite Only)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
