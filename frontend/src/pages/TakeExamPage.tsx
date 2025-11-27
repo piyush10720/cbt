@@ -348,7 +348,7 @@ const TakeExamPage: React.FC = () => {
 
   const renderQuestionContent = () => {
     if (!currentQuestion || !currentQuestionId) {
-      return <p className="text-gray-500">No question selected.</p>
+      return <p className="text-muted-foreground">No question selected.</p>
     }
 
     const answerValue = answers[currentQuestionId]
@@ -368,7 +368,7 @@ const TakeExamPage: React.FC = () => {
                 <label
                   key={optionLabel || idx}
                   className={`flex items-start space-x-3 rounded-lg border p-3 cursor-pointer transition-colors ${
-                    answerValue === optionLabel ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-300'
+                    answerValue === optionLabel ? 'border-blue-500 bg-blue-500/10' : 'border-border hover:border-blue-500/50'
                   }`}
                 >
                   <input
@@ -380,12 +380,12 @@ const TakeExamPage: React.FC = () => {
                     className="h-4 w-4 mt-1"
                   />
                   <div className="flex-1">
-                    <MathText text={optionText} className="text-sm text-gray-700" />
+                    <MathText text={optionText} className="text-sm text-foreground" />
                     {hasDiagram && diagramUrl && (
                       <img 
                         src={diagramUrl} 
                         alt={`Option ${optionLabel}`}
-                        className="mt-2 max-w-full h-auto max-h-48 rounded border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity"
+                        className="mt-2 max-w-full h-auto max-h-48 rounded border border-border cursor-pointer hover:opacity-80 transition-opacity"
                         onClick={(e) => {
                           e.preventDefault()
                           e.stopPropagation()
@@ -421,7 +421,7 @@ const TakeExamPage: React.FC = () => {
                 <label
                   key={optionLabel || idx}
                   className={`flex items-start space-x-3 rounded-lg border p-3 cursor-pointer transition-colors ${
-                    isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-300'
+                    isSelected ? 'border-blue-500 bg-blue-500/10' : 'border-border hover:border-blue-500/50'
                   }`}
                 >
                   <input
@@ -432,12 +432,12 @@ const TakeExamPage: React.FC = () => {
                     className="h-4 w-4 mt-1"
                   />
                   <div className="flex-1">
-                    <MathText text={optionText} className="text-sm text-gray-700" />
+                    <MathText text={optionText} className="text-sm text-foreground" />
                     {hasDiagram && diagramUrl && (
                       <img 
                         src={diagramUrl} 
                         alt={`Option ${optionLabel}`}
-                        className="mt-2 max-w-full h-auto max-h-48 rounded border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity"
+                        className="mt-2 max-w-full h-auto max-h-48 rounded border border-border cursor-pointer hover:opacity-80 transition-opacity"
                         onClick={(e) => {
                           e.preventDefault()
                           e.stopPropagation()
@@ -456,7 +456,7 @@ const TakeExamPage: React.FC = () => {
         return (
           <input
             type="number"
-            className="w-full rounded-md border border-gray-300 p-2 focus:border-blue-500 focus:outline-none"
+            className="w-full rounded-md border border-input p-2 focus:border-primary focus:outline-none bg-background"
             value={answerValue ?? ''}
             onChange={(event) => handleAnswerChange(currentQuestionId, event.target.value)}
             placeholder="Enter numeric answer"
@@ -466,7 +466,7 @@ const TakeExamPage: React.FC = () => {
       case 'descriptive':
         return (
           <textarea
-            className="w-full min-h-[160px] rounded-md border border-gray-300 p-3 focus:border-blue-500 focus:outline-none"
+            className="w-full min-h-[160px] rounded-md border border-input p-3 focus:border-primary focus:outline-none bg-background"
             value={answerValue ?? ''}
             onChange={(event) => handleAnswerChange(currentQuestionId, event.target.value)}
             placeholder="Write your answer here"
@@ -474,7 +474,7 @@ const TakeExamPage: React.FC = () => {
         )
 
       default:
-        return <p className="text-gray-500">Unsupported question type.</p>
+        return <p className="text-muted-foreground">Unsupported question type.</p>
     }
   }
 
@@ -488,9 +488,9 @@ const TakeExamPage: React.FC = () => {
         ) : isError ? (
           <Card>
             <CardContent className="py-12 text-center space-y-4">
-              <AlertCircle className="mx-auto h-12 w-12 text-red-500" />
-              <h2 className="text-xl font-semibold text-gray-800">Unable to start exam</h2>
-              <p className="text-gray-500">{(error as any)?.response?.data?.message || 'Please try again or contact support.'}</p>
+              <AlertCircle className="mx-auto h-12 w-12 text-destructive" />
+              <h2 className="text-xl font-semibold text-foreground">Unable to start exam</h2>
+              <p className="text-muted-foreground">{(error as any)?.response?.data?.message || 'Please try again or contact support.'}</p>
               <Button variant="outline" onClick={() => refetch()}>
                 Try again
               </Button>
@@ -510,21 +510,21 @@ const TakeExamPage: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
       {fullscreenError && (
-        <div className="bg-yellow-100 border border-yellow-300 text-yellow-800 px-4 py-3 rounded">
+        <div className="bg-yellow-500/10 border border-yellow-500/50 text-yellow-800 dark:text-yellow-200 px-4 py-3 rounded">
           {fullscreenError}
         </div>
       )}
       <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">{exam.title}</h1>
-          <p className="text-sm text-gray-500">Attempt #{attempt.number} · Total Questions: {questions.length}</p>
+          <h1 className="text-3xl font-bold text-foreground">{exam.title}</h1>
+          <p className="text-sm text-muted-foreground">Attempt #{attempt.number} · Total Questions: {questions.length}</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-3">
           {exam.settings.allowCalculator && (
             <Button
               onClick={() => setShowCalculator(!showCalculator)}
               variant="outline"
-              className="flex items-center space-x-2 bg-blue-50 hover:bg-blue-100 border-blue-300"
+              className="flex items-center space-x-2 bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/50"
             >
               <Calculator className="h-4 w-4" />
               <span>{showCalculator ? 'Hide' : 'Show'} Calculator</span>
@@ -532,10 +532,10 @@ const TakeExamPage: React.FC = () => {
           )}
           <Card className="w-full lg:w-auto">
             <CardContent className="flex items-center space-x-3 py-3 px-4">
-              <Clock className={`h-5 w-5 ${timeLeft !== null && timeLeft < 300 ? 'text-red-500' : 'text-blue-600'}`} />
+              <Clock className={`h-5 w-5 ${timeLeft !== null && timeLeft < 300 ? 'text-destructive' : 'text-blue-600 dark:text-blue-400'}`} />
               <div>
-                <p className="text-xs uppercase text-gray-500">Time Remaining</p>
-                <p className="text-lg font-semibold text-gray-900">{timeLeft !== null ? formatTime(timeLeft) : 'Calculating…'}</p>
+                <p className="text-xs uppercase text-muted-foreground">Time Remaining</p>
+                <p className="text-lg font-semibold text-foreground">{timeLeft !== null ? formatTime(timeLeft) : 'Calculating…'}</p>
               </div>
             </CardContent>
           </Card>
@@ -547,12 +547,12 @@ const TakeExamPage: React.FC = () => {
           <Card>
             <CardHeader className="space-y-1">
               <CardTitle className="text-lg">Question {currentIndex + 1}</CardTitle>
-              <CardDescription className="text-sm text-gray-600">
+              <CardDescription className="text-sm text-muted-foreground">
                 Marks: {currentQuestion?.marks ?? 0}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="text-gray-800 leading-relaxed">
+              <div className="text-foreground leading-relaxed">
                 <MathText text={currentQuestion?.text || ''} block />
               </div>
               {currentQuestion?.diagram?.present && currentQuestion?.diagram?.url && (
@@ -560,15 +560,15 @@ const TakeExamPage: React.FC = () => {
                   <img 
                     src={currentQuestion.diagram.url} 
                     alt="Question diagram"
-                    className="max-w-full h-auto max-h-64 rounded border border-gray-300 cursor-pointer hover:opacity-80 transition-opacity"
-                    onClick={() => setModalImage({ 
+                    className="max-w-full h-auto max-h-64 rounded border border-border cursor-pointer hover:opacity-80 transition-opacity"
+                    onClick={() => setModalImage({  
                       src: currentQuestion.diagram!.url!, 
                       alt: currentQuestion.diagram?.description || 'Question diagram' 
                     })}
                   />
                   {currentQuestion.diagram.description && (
-                    <p className="text-sm text-gray-500 mt-2 italic">
-                      {currentQuestion.diagram.description} <span className="text-blue-600">(Click to enlarge)</span>
+                    <p className="text-sm text-muted-foreground mt-2 italic">
+                      {currentQuestion.diagram.description} <span className="text-blue-600 dark:text-blue-400">(Click to enlarge)</span>
                     </p>
                   )}
                 </div>
@@ -583,12 +583,12 @@ const TakeExamPage: React.FC = () => {
                 variant="outline"
                 onClick={() => handleToggleReview(currentQuestionId)}
                 disabled={!currentQuestionId}
-                className={markedForReview[currentQuestionId] ? 'border-yellow-400 text-yellow-600' : ''}
+                className={markedForReview[currentQuestionId] ? 'border-yellow-400 text-yellow-600 dark:text-yellow-400' : ''}
               >
                 <Flag className="mr-2 h-4 w-4" />
                 {markedForReview[currentQuestionId] ? 'Unmark Review' : 'Mark for Review'}
               </Button>
-              {submitAnswerMutation.isLoading && <span className="text-xs text-gray-500">Saving…</span>}
+              {submitAnswerMutation.isLoading && <span className="text-xs text-muted-foreground">Saving…</span>}
             </div>
             <div className="flex items-center space-x-2">
               <Button
@@ -641,11 +641,11 @@ const TakeExamPage: React.FC = () => {
                       onClick={() => goToQuestion(index)}
                       className={`flex h-9 w-9 items-center justify-center rounded-md border text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                         isActive
-                          ? 'border-blue-600 bg-blue-100 text-blue-700'
+                          ? 'border-blue-600 bg-blue-500/20 text-blue-700 dark:text-blue-300'
                           : answered
-                          ? 'border-green-500 bg-green-50 text-green-700'
-                          : 'border-gray-300 text-gray-600 hover:border-blue-300'
-                      } ${isMarked ? 'ring-2 ring-yellow-400 ring-offset-1' : ''}`}
+                          ? 'border-green-500 bg-green-500/10 text-green-700 dark:text-green-300'
+                          : 'border-border text-muted-foreground hover:border-blue-500/50'
+                      } ${isMarked ? 'ring-2 ring-yellow-500 ring-offset-1' : ''}`}
                     >
                       {answered ? <CheckCircle className="h-4 w-4" /> : index + 1}
                     </button>
@@ -653,17 +653,17 @@ const TakeExamPage: React.FC = () => {
                 })}
               </div>
 
-              <div className="space-y-2 text-xs text-gray-500">
+              <div className="space-y-2 text-xs text-muted-foreground">
                 <div className="flex items-center space-x-2">
-                  <span className="flex h-4 w-4 items-center justify-center rounded bg-green-200 text-green-700 text-[10px] font-semibold">✓</span>
+                  <span className="flex h-4 w-4 items-center justify-center rounded bg-green-500/20 text-green-700 dark:text-green-300 text-[10px] font-semibold">✓</span>
                   <span>Answered</span>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <span className="h-4 w-4 rounded border border-gray-400" />
+                  <span className="h-4 w-4 rounded border border-muted-foreground" />
                   <span>Not answered</span>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <span className="h-4 w-4 rounded border border-yellow-400 ring-2 ring-yellow-400" />
+                  <span className="h-4 w-4 rounded border border-yellow-500 ring-2 ring-yellow-500" />
                   <span>Marked for review</span>
                 </div>
               </div>
@@ -675,7 +675,7 @@ const TakeExamPage: React.FC = () => {
               <CardTitle>Exam Settings</CardTitle>
               <CardDescription>Quick reference</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-2 text-sm text-gray-600">
+            <CardContent className="space-y-2 text-sm text-muted-foreground">
               <p>Total Marks: {exam.settings.totalMarks}</p>
               <p>Negative Marking: {exam.settings.negativeMarking ? 'Yes' : 'No'}</p>
               <p>Allow Review: {exam.settings.allowReview ? 'Yes' : 'No'}</p>

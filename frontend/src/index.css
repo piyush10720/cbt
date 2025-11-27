@@ -4,72 +4,64 @@
 
 @layer base {
   :root {
-    /* Premium Deep Blue Palette - Light Mode */
-    --background: 210 40% 98%;
-    /* Very light cool gray/blue */
-    --foreground: 222 47% 11%;
-    /* Deep dark blue */
-
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
-
+    --card-foreground: 222.2 84% 4.9%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-
-    --primary: 221 83% 53%;
-    /* Vibrant Blue */
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 221.2 83.2% 53.3%;
     --primary-foreground: 210 40% 98%;
-
     --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222 47% 11%;
-
+    --secondary-foreground: 222.2 47.4% 11.2%;
     --muted: 210 40% 96.1%;
-    --muted-foreground: 215 16% 47%;
-
+    --muted-foreground: 215.4 16.3% 46.9%;
     --accent: 210 40% 96.1%;
-    --accent-foreground: 222 47% 11%;
-
+    --accent-foreground: 222.2 47.4% 11.2%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 221 83% 53%;
-
-    --radius: 0.75rem;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221.2 83.2% 53.3%;
+    --radius: 0.5rem;
+    --success: 142 76% 36%;
+    --success-foreground: 355 100% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 48 96% 89%;
+    --info: 217 91% 60%;
+    --info-foreground: 226 100% 97%;
+    --brand: 221.2 83.2% 53.3%;
+    --brand-foreground: 210 40% 98%;
   }
 
   .dark {
-    /* Premium Deep Blue Palette - Dark Mode */
     --background: 222 47% 11%;
-    /* Deep dark blue */
     --foreground: 210 40% 98%;
-
-    --card: 222 47% 11%;
+    --card: 215 28% 17%;
     --card-foreground: 210 40% 98%;
-
-    --popover: 222 47% 11%;
+    --popover: 215 28% 17%;
     --popover-foreground: 210 40% 98%;
-
-    --primary: 217 91% 60%;
-    /* Lighter Vibrant Blue */
-    --primary-foreground: 222 47% 11%;
-
+    --primary: 244 75% 60%;
+    --primary-foreground: 210 40% 98%;
     --secondary: 217 32% 17%;
     --secondary-foreground: 210 40% 98%;
-
     --muted: 217 32% 17%;
-    --muted-foreground: 215 20% 65%;
-
+    --muted-foreground: 215 20.2% 65.1%;
     --accent: 217 32% 17%;
     --accent-foreground: 210 40% 98%;
-
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
-
     --border: 217 32% 17%;
     --input: 217 32% 17%;
-    --ring: 224 76% 48%;
+    --ring: 224.3 76.3% 48%;
+    --success: 142 70% 50%;
+    --success-foreground: 144 100% 97%;
+    --warning: 48 96% 89%;
+    --warning-foreground: 38 92% 50%;
+    --info: 217 91% 60%;
+    --info-foreground: 226 100% 97%;
+    --brand: 244 75% 60%;
+    --brand-foreground: 210 40% 98%;
   }
 }
 
@@ -102,28 +94,28 @@
 
 /* Exam timer styles */
 .timer-warning {
-  @apply text-orange-500 animate-pulse;
+  @apply text-warning animate-pulse;
 }
 
 .timer-critical {
-  @apply text-red-500 animate-bounce;
+  @apply text-destructive animate-bounce;
 }
 
 /* Question navigation styles */
 .question-nav-answered {
-  @apply bg-green-100 text-green-800 border-green-300;
+  @apply bg-success/20 text-success border-success/30;
 }
 
 .question-nav-marked {
-  @apply bg-yellow-100 text-yellow-800 border-yellow-300;
+  @apply bg-warning/20 text-warning border-warning/30;
 }
 
 .question-nav-current {
-  @apply bg-blue-100 text-blue-800 border-blue-300 ring-2 ring-blue-500;
+  @apply bg-brand/20 text-brand border-brand/30 ring-2 ring-brand;
 }
 
 .question-nav-unanswered {
-  @apply bg-gray-100 text-gray-600 border-gray-300;
+  @apply bg-muted text-muted-foreground border-border;
 }
 
 /* Loading animations */
@@ -133,11 +125,11 @@
 
 /* Exam interface styles */
 .exam-container {
-  @apply min-h-screen bg-gray-50;
+  @apply min-h-screen bg-background;
 }
 
 .exam-header {
-  @apply bg-white shadow-sm border-b sticky top-0 z-10;
+  @apply bg-background shadow-sm border-b sticky top-0 z-10;
 }
 
 .exam-content {
@@ -145,7 +137,7 @@
 }
 
 .exam-sidebar {
-  @apply w-80 bg-white shadow-lg border-l;
+  @apply w-80 bg-background shadow-lg border-l;
 }
 
 /* Print styles */

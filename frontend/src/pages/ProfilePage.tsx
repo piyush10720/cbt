@@ -80,14 +80,14 @@ const ProfilePage: React.FC = () => {
       <div className="mb-8 flex items-center space-x-4">
         <Avatar className="h-20 w-20">
           <AvatarImage src={user.profile?.avatar} />
-          <AvatarFallback className="text-2xl bg-indigo-100 text-indigo-600">
+          <AvatarFallback className="text-2xl bg-primary/10 text-primary">
             {user.name.charAt(0).toUpperCase()}
           </AvatarFallback>
         </Avatar>
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">{user.name}</h1>
+          <h1 className="text-3xl font-bold text-foreground">{user.name}</h1>
           <div className="flex items-center space-x-2 mt-1">
-            <span className="text-gray-500">{user.email}</span>
+            <span className="text-muted-foreground">{user.email}</span>
             <Badge variant="secondary" className="capitalize">
               {user.role}
             </Badge>

@@ -293,14 +293,14 @@ const ResultsPage: React.FC = () => {
                         </div>
                         <div className="bg-muted/30 p-3 rounded-lg">
                           <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Correct</p>
-                          <div className="flex items-center text-green-600 font-medium">
+                          <div className="flex items-center text-green-600 dark:text-green-400 font-medium">
                             <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
                             {result.analytics?.correctAnswers ?? '-'}
                           </div>
                         </div>
                         <div className="bg-muted/30 p-3 rounded-lg">
                           <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Incorrect</p>
-                          <div className="flex items-center text-red-500 font-medium">
+                          <div className="flex items-center text-destructive font-medium">
                             <XCircle className="w-3.5 h-3.5 mr-1" />
                             {result.analytics?.incorrectAnswers ?? '-'}
                           </div>

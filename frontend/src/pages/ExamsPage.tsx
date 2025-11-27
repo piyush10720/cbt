@@ -330,13 +330,13 @@ const ExamsPage: React.FC = () => {
           className={`flex items-center py-1.5 px-2 cursor-pointer rounded-md transition-colors ${
             isSelected 
               ? 'bg-primary/10 text-primary font-medium' 
-              : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+              : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
           }`}
           style={{ paddingLeft: `${level * 16 + 8}px` }}
           onClick={() => setCurrentFolderId(folder._id)}
         >
           <div 
-            className="p-0.5 mr-1 hover:bg-gray-200 rounded transition-colors"
+            className="p-0.5 mr-1 hover:bg-accent/80 rounded transition-colors"
             onClick={(e) => {
               e.stopPropagation()
               toggleFolderExpand(folder._id)
@@ -390,7 +390,7 @@ const ExamsPage: React.FC = () => {
       <SEO title="Exams" description="Browse and manage your exams." />
       <div className="flex h-[calc(100vh-64px)] bg-background">
         {/* Sidebar */}
-        <div className="w-72 border-r bg-gray-50/50 flex flex-col">
+        <div className="w-72 border-r bg-muted/30 flex flex-col">
           <div className="p-4 border-b bg-background">
             <Button onClick={() => setIsCreateFolderOpen(true)} className="w-full justify-start shadow-sm" variant="outline">
               <Plus className="mr-2 h-4 w-4" />
@@ -402,7 +402,7 @@ const ExamsPage: React.FC = () => {
               className={`flex items-center py-2 px-3 cursor-pointer rounded-md transition-colors ${
                 !currentFolderId 
                   ? 'bg-primary/10 text-primary font-medium' 
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                  : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
               }`}
               onClick={() => setCurrentFolderId(null)}
             >
@@ -533,8 +533,8 @@ const ExamsPage: React.FC = () => {
                         <CardContent className="p-4 flex items-center justify-between">
                           <div className="flex items-center overflow-hidden">
                             <div className={`p-2 rounded-lg mr-3 ${
-                              folder.visibility === 'public' ? 'bg-green-100 text-green-600' :
-                              folder.visibility === 'invited' ? 'bg-blue-100 text-blue-600' : 'bg-amber-100 text-amber-600'
+                              folder.visibility === 'public' ? 'bg-success/10 text-success' :
+                              folder.visibility === 'invited' ? 'bg-brand/10 text-brand' : 'bg-warning/10 text-warning'
                             }`}>
                               <FolderIcon className="h-5 w-5" />
                             </div>
@@ -570,7 +570,7 @@ const ExamsPage: React.FC = () => {
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem 
-                                className="text-red-600 focus:text-red-600 focus:bg-red-50" 
+                                className="text-destructive focus:text-destructive focus:bg-destructive/10" 
                                 onClick={(e) => {
                                   e.stopPropagation()
                                   setFolderToDelete(folder)
@@ -734,7 +734,7 @@ const ExamsPage: React.FC = () => {
                                             </DropdownMenuItem>
                                             <DropdownMenuSeparator />
                                             <DropdownMenuItem 
-                                              className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                                              className="text-destructive focus:text-destructive focus:bg-destructive/10"
                                               onClick={(e) => {
                                                 e.stopPropagation()
                                                 setExamToDelete(exam)

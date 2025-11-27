@@ -179,7 +179,7 @@ const ExamDetailsPage: React.FC = () => {
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem 
-                        className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                        className="text-destructive focus:text-destructive focus:bg-destructive/10"
                         onClick={() => setIsDeleteModalOpen(true)}
                       >
                         <Trash2 className="mr-2 h-4 w-4" /> Delete
@@ -253,7 +253,7 @@ const ExamDetailsPage: React.FC = () => {
                             <li>Ensure you have a stable internet connection.</li>
                             <li>Do not refresh the page during the exam.</li>
                             {exam.settings.negativeMarking && (
-                              <li className="text-amber-600 font-medium">Negative marking is enabled for incorrect answers.</li>
+                              <li className="text-amber-600 dark:text-amber-400 font-medium">Negative marking is enabled for incorrect answers.</li>
                             )}
                           </ul>
                         </div>
@@ -269,13 +269,13 @@ const ExamDetailsPage: React.FC = () => {
                         <CardContent>
                           <div className="space-y-4">
                             <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-600">
+                              <div className="w-8 h-8 rounded-full bg-green-500/10 flex items-center justify-center text-green-600 dark:text-green-400">
                                 <CheckCircle2 className="w-5 h-5" />
                               </div>
                               <span className="text-sm">Stable internet connection check</span>
                             </div>
                             <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-600">
+                              <div className="w-8 h-8 rounded-full bg-green-500/10 flex items-center justify-center text-green-600 dark:text-green-400">
                                 <CheckCircle2 className="w-5 h-5" />
                               </div>
                               <span className="text-sm">Browser compatibility check</span>

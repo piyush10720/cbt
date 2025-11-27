@@ -259,14 +259,14 @@ const ExamWizard: React.FC<ExamWizardProps> = ({
               return (
                 <div key={step.id} className="flex items-center">
                   <div
-                    className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${
+                    className={`flex items-start justify-center w-10 h-10 rounded-full border-2 ${
                       isCompleted
-                        ? 'bg-green-500 border-green-500 text-white'
+                        ? 'bg-green-600 border-green-600 text-white'
                         : isActive
-                        ? 'bg-blue-500 border-blue-500 text-white'
+                        ? 'bg-primary border-primary text-primary-foreground'
                         : canAccess
-                        ? 'border-gray-300 text-gray-500'
-                        : 'border-gray-200 text-gray-300'
+                        ? 'border-input text-muted-foreground'
+                        : 'border-border text-muted'
                     }`}
                   >
                     {isCompleted ? (
@@ -277,14 +277,14 @@ const ExamWizard: React.FC<ExamWizardProps> = ({
                   </div>
                   <div className="ml-3 hidden sm:block">
                     <p className={`text-sm font-medium ${
-                      isActive ? 'text-blue-600' : isCompleted ? 'text-green-600' : 'text-gray-500'
+                      isActive ? 'text-primary' : isCompleted ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'
                     }`}>
                       {step.title}
                     </p>
-                    <p className="text-xs text-gray-400">{step.description}</p>
+                    <p className="text-xs text-muted-foreground">{step.description}</p>
                   </div>
                   {index < visibleSteps.length - 1 && (
-                    <div className="hidden sm:block w-16 h-px bg-gray-300 ml-6" />
+                    <div className="hidden sm:block w-16 h-px bg-border ml-6" />
                   )}
                 </div>
               )
@@ -351,7 +351,7 @@ const ExamWizard: React.FC<ExamWizardProps> = ({
             <Button
               onClick={handleComplete}
               disabled={!canProceed() || loading}
-              className="bg-green-600 hover:bg-green-700"
+              className="bg-green-600 hover:bg-green-700 text-white"
             >
               {loading ? (
                 <div className="flex items-center space-x-2">
@@ -370,10 +370,10 @@ const ExamWizard: React.FC<ExamWizardProps> = ({
 
       {/* Status Messages */}
       {questions.length > 0 && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+        <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4">
           <div className="flex items-center space-x-2">
-            <CheckCircle className="w-5 h-5 text-green-600" />
-            <span className="text-green-800 font-medium">
+            <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
+            <span className="text-green-800 dark:text-green-200 font-medium">
               {questions.length} questions loaded successfully
             </span>
           </div>
@@ -381,10 +381,10 @@ const ExamWizard: React.FC<ExamWizardProps> = ({
       )}
 
       {mode === 'create' && currentStep === 0 && questions.length === 0 && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="bg-primary/10 border border-primary/20 rounded-lg p-4">
           <div className="flex items-center space-x-2">
-            <AlertCircle className="w-5 h-5 text-blue-600" />
-            <span className="text-blue-800">
+            <AlertCircle className="w-5 h-5 text-primary" />
+            <span className="text-primary">
               Upload your PDF files to get started, or create questions manually
             </span>
           </div>

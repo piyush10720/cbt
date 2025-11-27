@@ -3,6 +3,7 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import SEO from '@/components/SEO'
 import { Button } from '@/components/ui/button'
+import { ThemeToggle } from '@/components/ThemeToggle'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -117,6 +118,8 @@ const Layout: React.FC = () => {
                 <span>Create Exam</span>
               </Button>
             )}
+
+            <ThemeToggle />
 
             <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
               <Bell className="w-5 h-5" />

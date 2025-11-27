@@ -342,34 +342,34 @@ const ResultDetailsPage: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <Card className="bg-background/50 backdrop-blur-sm">
                 <CardContent className="p-6 flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center text-green-600">
+                  <div className="w-12 h-12 rounded-full bg-green-500/10 flex items-center justify-center text-green-600 dark:text-green-400">
                     <CheckCircle2 className="w-6 h-6" />
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground font-medium">Correct</p>
-                    <p className="text-2xl font-bold text-green-600">{breakdown?.correct}</p>
+                    <p className="text-2xl font-bold text-green-600 dark:text-green-400">{breakdown?.correct}</p>
                   </div>
                 </CardContent>
               </Card>
               <Card className="bg-background/50 backdrop-blur-sm">
                 <CardContent className="p-6 flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center text-red-600">
+                  <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center text-red-600 dark:text-red-400">
                     <XCircle className="w-6 h-6" />
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground font-medium">Incorrect</p>
-                    <p className="text-2xl font-bold text-red-600">{breakdown?.incorrect}</p>
+                    <p className="text-2xl font-bold text-red-600 dark:text-red-400">{breakdown?.incorrect}</p>
                   </div>
                 </CardContent>
               </Card>
               <Card className="bg-background/50 backdrop-blur-sm">
                 <CardContent className="p-6 flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-600">
+                  <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
                     <CircleSlash className="w-6 h-6" />
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground font-medium">Unanswered</p>
-                    <p className="text-2xl font-bold text-gray-600">{breakdown?.unanswered}</p>
+                    <p className="text-2xl font-bold text-muted-foreground">{breakdown?.unanswered}</p>
                   </div>
                 </CardContent>
               </Card>
@@ -495,14 +495,14 @@ const ResultDetailsPage: React.FC = () => {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>
-                    <h4 className="text-sm font-semibold text-green-600 mb-2">Strengths</h4>
+                    <h4 className="text-sm font-semibold text-green-600 dark:text-green-400 mb-2">Strengths</h4>
                     <ul className="text-sm space-y-1 list-disc pl-4">
                       {result.feedback.strengths.map((s, i) => <li key={i}>{s}</li>)}
                     </ul>
                   </div>
                   <Separator />
                   <div>
-                    <h4 className="text-sm font-semibold text-amber-600 mb-2">Improvements</h4>
+                    <h4 className="text-sm font-semibold text-amber-600 dark:text-amber-400 mb-2">Improvements</h4>
                     <ul className="text-sm space-y-1 list-disc pl-4">
                       {result.feedback.weaknesses.map((w, i) => <li key={i}>{w}</li>)}
                     </ul>

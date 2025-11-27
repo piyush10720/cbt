@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { BookOpen, Eye, EyeOff } from 'lucide-react'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import SEO from '@/components/SEO'
+import { ThemeToggle } from '@/components/ThemeToggle'
 
 const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('')
@@ -46,29 +47,32 @@ const LoginPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <SEO title="Login" description="Login to your CBT Platform account." />
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
+      </div>
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-full mb-4">
-            <BookOpen className="w-8 h-8 text-white" />
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-primary rounded-full mb-4">
+            <BookOpen className="w-8 h-8 text-primary-foreground" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900">CBT Platform</h1>
-          <p className="text-gray-600 mt-2">Sign in to your account</p>
+          <h1 className="text-3xl font-bold text-foreground">CBT Platform</h1>
+          <p className="text-muted-foreground mt-2">Sign in to your account</p>
         </div>
 
-        <Card>
+        <Card className="border-border">
           <CardHeader>
-            <CardTitle>Welcome back</CardTitle>
-            <CardDescription>
+            <CardTitle className="text-card-foreground">Welcome back</CardTitle>
+            <CardDescription className="text-muted-foreground">
               Enter your credentials to access your account
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="email" className="block text-sm font-medium text-foreground mb-1">
                   Email
                 </label>
                 <Input
@@ -77,15 +81,15 @@ const LoginPage: React.FC = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="Enter your email"
-                  className={errors.email ? 'border-red-500' : ''}
+                  className={errors.email ? 'border-destructive' : 'bg-background text-foreground'}
                 />
                 {errors.email && (
-                  <p className="text-red-500 text-sm mt-1">{errors.email}</p>
+                  <p className="text-destructive text-sm mt-1">{errors.email}</p>
                 )}
               </div>
 
               <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="password" className="block text-sm font-medium text-foreground mb-1">
                   Password
                 </label>
                 <div className="relative">
@@ -95,7 +99,7 @@ const LoginPage: React.FC = () => {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter your password"
-                    className={errors.password ? 'border-red-500 pr-10' : 'pr-10'}
+                    className={errors.password ? 'border-destructive pr-10' : 'pr-10 bg-background text-foreground'}
                   />
                   <button
                     type="button"
@@ -103,14 +107,14 @@ const LoginPage: React.FC = () => {
                     className="absolute inset-y-0 right-0 pr-3 flex items-center"
                   >
                     {showPassword ? (
-                      <EyeOff className="h-4 w-4 text-gray-400" />
+                      <EyeOff className="h-4 w-4 text-muted-foreground" />
                     ) : (
-                      <Eye className="h-4 w-4 text-gray-400" />
+                      <Eye className="h-4 w-4 text-muted-foreground" />
                     )}
                   </button>
                 </div>
                 {errors.password && (
-                  <p className="text-red-500 text-sm mt-1">{errors.password}</p>
+                  <p className="text-destructive text-sm mt-1">{errors.password}</p>
                 )}
               </div>
 
@@ -131,11 +135,11 @@ const LoginPage: React.FC = () => {
             </form>
 
             <div className="mt-6 text-center">
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-muted-foreground">
                 Don't have an account?{' '}
                 <Link
                   to="/register"
-                  className="font-medium text-blue-600 hover:text-blue-500"
+                  className="font-medium text-primary hover:text-primary/80"
                 >
                   Sign up
                 </Link>

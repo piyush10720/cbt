@@ -125,8 +125,8 @@ const DashboardPage = () => {
               value={stats.totalExams} 
               description="Exams attempted" 
               icon={BookOpen} 
-              color="text-blue-600"
-              bg="bg-blue-50"
+              color="text-blue-600 dark:text-blue-400"
+              bg="bg-blue-500/10"
             />
             <StatsCard 
               title="Average Score" 
@@ -134,23 +134,23 @@ const DashboardPage = () => {
               description="Overall performance" 
               icon={TrendingUp} 
               color={getPerformanceColor(stats.averageScore).replace('text-', 'text-')} // Keep it simple for now or map colors
-              bg="bg-green-50"
+              bg="bg-green-500/10"
             />
             <StatsCard 
               title="Best Score" 
               value={`${stats.bestScore}%`} 
               description="Highest achievement" 
               icon={Award} 
-              color="text-amber-600"
-              bg="bg-amber-50"
+              color="text-amber-600 dark:text-amber-400"
+              bg="bg-amber-500/10"
             />
             <StatsCard 
               title="Recent Activity" 
               value={stats.recentActivity.length} 
               description="Last 30 days" 
               icon={Clock} 
-              color="text-purple-600"
-              bg="bg-purple-50"
+              color="text-purple-600 dark:text-purple-400"
+              bg="bg-purple-500/10"
             />
           </>
         )}
@@ -162,32 +162,32 @@ const DashboardPage = () => {
               value={myExamsData?.data.pagination.total || 0} 
               description="Exams created" 
               icon={FileText} 
-              color="text-blue-600"
-              bg="bg-blue-50"
+              color="text-blue-600 dark:text-blue-400"
+              bg="bg-blue-500/10"
             />
             <StatsCard 
               title="Published" 
               value={myExamsData?.data.exams.filter(e => e.isPublished).length || 0} 
               description="Active exams" 
               icon={BookOpen} 
-              color="text-green-600"
-              bg="bg-green-50"
+              color="text-green-600 dark:text-green-400"
+              bg="bg-green-500/10"
             />
             <StatsCard 
               title="Drafts" 
               value={myExamsData?.data.exams.filter(e => !e.isPublished).length || 0} 
               description="Pending publication" 
               icon={Clock} 
-              color="text-amber-600"
-              bg="bg-amber-50"
+              color="text-amber-600 dark:text-amber-400"
+              bg="bg-amber-500/10"
             />
             <StatsCard 
               title="Students" 
               value={0} 
               description="Total participants" 
               icon={Users} 
-              color="text-purple-600"
-              bg="bg-purple-50"
+              color="text-purple-600 dark:text-purple-400"
+              bg="bg-purple-500/10"
             />
           </>
         )}
@@ -197,7 +197,7 @@ const DashboardPage = () => {
         {/* Recent Exams / Main Content */}
         <motion.div variants={item} className="lg:col-span-2 space-y-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-bold text-gray-900">
+            <h2 className="text-2xl font-bold text-foreground">
               {isTeacher ? 'My Recent Exams' : 'Available Exams'}
             </h2>
             <Button variant="ghost" className="text-primary hover:text-primary/80" onClick={() => navigate('/exams')}>
@@ -207,13 +207,13 @@ const DashboardPage = () => {
 
           <div className="space-y-4">
             {(isTeacher ? myExamsData?.data.exams : examsData?.data.exams)?.length === 0 ? (
-              <Card className="border-dashed">
+              <Card className="border-dashed border-muted">
                 <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-                  <div className="h-12 w-12 rounded-full bg-gray-100 flex items-center justify-center mb-4">
-                    <Sparkles className="h-6 w-6 text-gray-400" />
+                  <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-4">
+                    <Sparkles className="h-6 w-6 text-muted-foreground" />
                   </div>
-                  <h3 className="text-lg font-medium text-gray-900">No exams found</h3>
-                  <p className="text-gray-500 mt-1 max-w-sm">
+                  <h3 className="text-lg font-medium text-foreground">No exams found</h3>
+                  <p className="text-muted-foreground mt-1 max-w-sm">
                     {isTeacher 
                       ? 'Get started by creating your first exam. It only takes a few minutes.'
                       : 'Check back later for new exams or browse the catalog.'
@@ -240,19 +240,19 @@ const DashboardPage = () => {
                     <CardContent className="p-5 flex items-center justify-between">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-semibold text-lg text-gray-900 truncate">{exam.title}</h3>
+                          <h3 className="font-semibold text-lg text-foreground truncate">{exam.title}</h3>
                           <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                             exam.isPublished 
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-amber-100 text-amber-700'
+                              ? 'bg-green-500/10 text-green-600 dark:text-green-400'
+                              : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
                           }`}>
                             {exam.isPublished ? 'Published' : 'Draft'}
                           </span>
                         </div>
-                        <p className="text-sm text-gray-500 line-clamp-1 mb-3">
+                        <p className="text-sm text-muted-foreground line-clamp-1 mb-3">
                           {exam.description || 'No description provided'}
                         </p>
-                        <div className="flex items-center gap-4 text-xs text-gray-400 font-medium">
+                        <div className="flex items-center gap-4 text-xs text-muted-foreground font-medium">
                           <span className="flex items-center"><FileText className="w-3 h-3 mr-1" /> {exam.questionCount} Qs</span>
                           <span className="flex items-center"><Clock className="w-3 h-3 mr-1" /> {exam.settings.duration} min</span>
                           <span>{formatRelativeTime(exam.createdAt)}</span>
@@ -260,7 +260,7 @@ const DashboardPage = () => {
                       </div>
                       <div className="ml-4">
                         <Button variant="ghost" size="icon" className="rounded-full">
-                          <ArrowRight className="h-5 w-5 text-gray-300" />
+                          <ArrowRight className="h-5 w-5 text-muted-foreground" />
                         </Button>
                       </div>
                     </CardContent>
@@ -275,7 +275,7 @@ const DashboardPage = () => {
         <motion.div variants={item} className="space-y-8">
           {/* Quick Actions (Teachers) */}
           {isTeacher && (
-            <Card className="overflow-hidden border-none shadow-lg bg-gradient-to-br from-gray-900 to-gray-800 text-white">
+            <Card className="overflow-hidden border-none shadow-lg bg-gradient-to-br from-gray-900 to-gray-800 text-white dark:from-gray-800 dark:to-gray-900">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Zap className="h-5 w-5 text-yellow-400" /> Quick Actions
@@ -284,7 +284,7 @@ const DashboardPage = () => {
               <CardContent className="grid grid-cols-1 gap-3">
                 <Button 
                   variant="secondary" 
-                  className="w-full justify-start h-12 text-gray-900 hover:bg-gray-100"
+                  className="w-full justify-start h-12 text-gray-900 dark:text-yellow-400 hover:bg-gray-100 dark:hover:bg-gray-800"
                   onClick={() => navigate('/exams/create')}
                 >
                   <Plus className="mr-2 h-4 w-4" /> Create New Exam
@@ -316,20 +316,20 @@ const DashboardPage = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 {resultsData?.data.results.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <Award className="w-10 h-10 mx-auto mb-3 text-gray-300" />
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Award className="w-10 h-10 mx-auto mb-3 text-muted-foreground/50" />
                     <p className="text-sm">No results yet.</p>
                   </div>
                 ) : (
                   resultsData?.data.results.map((result) => (
                     <div
                       key={result.id}
-                      className="flex items-center justify-between p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer"
+                      className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer"
                       onClick={() => navigate(`/results/${result.id}`)}
                     >
                       <div className="flex-1 min-w-0 mr-3">
-                        <p className="font-medium text-sm text-gray-900 truncate">{result.exam.title}</p>
-                        <p className="text-xs text-gray-500">{formatRelativeTime(result.createdAt)}</p>
+                        <p className="font-medium text-sm text-foreground truncate">{result.exam.title}</p>
+                        <p className="text-xs text-muted-foreground">{formatRelativeTime(result.createdAt)}</p>
                       </div>
                       <div className={`font-bold text-sm ${getPerformanceColor(result.percentage)}`}>
                         {result.percentage}%
@@ -359,7 +359,7 @@ const StatsCard = ({ title, value, description, icon: Icon, color, bg }: any) =>
         </div>
       </div>
       <div className="flex flex-col mt-2">
-        <span className="text-2xl font-bold">{value}</span>
+        <span className="text-2xl font-bold text-foreground">{value}</span>
         <span className="text-xs text-muted-foreground mt-1">{description}</span>
       </div>
     </CardContent>

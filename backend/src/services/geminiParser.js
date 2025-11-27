@@ -654,6 +654,14 @@ For Descriptive questions:
    * @param {Array} questionsWithImages - Questions that have images metadata
    * @returns {Promise<void>} - Updates questions in place with image URLs
    */
+  /**
+   * Extract images as base64 from PDF for questions that have images
+   * Phase 2 of the two-phase image extraction process
+   * 
+   * @param {Buffer} pdfBuffer - The PDF buffer containing the images
+   * @param {Array} questionsWithImages - Questions that have images metadata
+   * @returns {Promise<void>} - Updates questions in place with image URLs
+   */
   async extractImagesForQuestions(pdfBuffer, questionsWithImages) {
     if (!questionsWithImages || questionsWithImages.length === 0) {
       console.log('✓ No images to extract')
@@ -666,21 +674,22 @@ For Descriptive questions:
     }
 
     const folder = process.env.CLOUDINARY_FOLDER || 'cbt-diagrams'
+    
+    // Step 1: Get bounding boxes for all questions first
+    // We still batch this request to Gemini to avoid hitting token limits
     const batchSize = 10
     const batches = []
-
-    // Split into batches of 10
     for (let i = 0; i < questionsWithImages.length; i += batchSize) {
       batches.push(questionsWithImages.slice(i, i + batchSize))
     }
 
-    console.log(`\n🎨 Extracting images for ${questionsWithImages.length} question(s) in ${batches.length} batch(es)...`)
-    console.log(`   📌 Using NEW METHOD: Bounding Box + Cropping`)
-    console.log(`🚀 Processing ${batches.length} image batches in parallel (max ${this.maxConcurrentRequests} concurrent)`)
+    console.log(`\n🎨 Extracting images for ${questionsWithImages.length} question(s)...`)
+    console.log(`   📌 Step 1: Getting bounding boxes from Gemini`)
+    
+    // Map to store all bounding box data: questionId -> data
+    const allBoundingBoxes = {}
 
-    const batchTasks = batches.map((batch, batchIndex) => async () => {
-      console.log(`\n📦 Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} questions)`)
-
+    const bboxTasks = batches.map((batch, batchIndex) => async () => {
       try {
         // Build request for this batch
         const imageRequests = batch.map(q => {
@@ -701,36 +710,118 @@ For Descriptive questions:
         
         // Call Gemini to get bounding boxes
         const boundingBoxData = await this.requestImageBoundingBoxes(pdfBuffer, imageRequests)
-
-        // Process questions in parallel within this batch
-        await Promise.all(batch.map(async (question) => {
-          const boxData = boundingBoxData[question.id]
-          if (!boxData) {
-            console.warn(`   ⚠️  No bounding box data found for question ${question.id}`)
-            return
-          }
-
-          // Process question image if present
-          if (boxData.question && boxData.question.boundingBox) {
-            await this.processQuestionImage(question, boxData.question, pdfBuffer, folder)
-          }
-
-          // Process option images if present
-          if (boxData.options) {
-            await this.processOptionImages(question, boxData.options, pdfBuffer, folder)
-          }
-        }))
+        Object.assign(allBoundingBoxes, boundingBoxData)
         
-        console.log(`   ✅ Batch ${batchIndex + 1} complete`)
       } catch (error) {
-        console.error(`   ❌ Failed to process batch ${batchIndex + 1}:`, error.message)
-        console.error(`   Stack trace:`, error.stack)
-        throw error
+        console.error(`   ❌ Failed to get bounding boxes for batch ${batchIndex + 1}:`, error.message)
+        // Continue with other batches
       }
     })
 
-    await this.executeWithConcurrencyLimit(batchTasks, this.maxConcurrentRequests)
+    // Execute bounding box requests with concurrency limit
+    await this.executeWithConcurrencyLimit(bboxTasks, this.maxConcurrentRequests)
 
+    // Step 2: Group all extraction tasks by PAGE
+    // This is the critical optimization to prevent OOM: we only load/render each PDF page ONCE
+    console.log(`   📌 Step 2: Processing images by page (Optimization)`)
+    
+    const tasksByPage = {} // pageNumber -> Array of tasks
+    
+    questionsWithImages.forEach(question => {
+      const boxData = allBoundingBoxes[question.id]
+      if (!boxData) return
+
+      // Task for question image
+      if (boxData.question && boxData.question.boundingBox) {
+        const page = boxData.question.page || question.pageNumber || 1
+        if (!tasksByPage[page]) tasksByPage[page] = []
+        
+        tasksByPage[page].push({
+          type: 'question',
+          question: question,
+          boundingBox: boxData.question.boundingBox
+        })
+      }
+
+      // Tasks for option images
+      if (boxData.options) {
+        Object.entries(boxData.options).forEach(([label, optData]) => {
+          if (optData.boundingBox) {
+            const page = optData.page || question.pageNumber || 1
+            if (!tasksByPage[page]) tasksByPage[page] = []
+            
+            tasksByPage[page].push({
+              type: 'option',
+              question: question,
+              label: label,
+              boundingBox: optData.boundingBox
+            })
+          }
+        })
+      }
+    })
+
+    const pagesToProcess = Object.keys(tasksByPage).map(Number).sort((a, b) => a - b)
+    console.log(`   📄 Processing ${pagesToProcess.length} unique pages with images`)
+
+    // Step 3: Process each page sequentially (or with very low concurrency) to save memory
+    // We use a concurrency of 1 here because PDF rendering is very memory intensive
+    const pageTasks = pagesToProcess.map(pageNumber => async () => {
+      const tasks = tasksByPage[pageNumber]
+      console.log(`   Processing Page ${pageNumber}: ${tasks.length} images to extract`)
+      
+      try {
+        // 1. Convert PDF page to image (HEAVY OPERATION - DONE ONCE PER PAGE)
+        const pageImage = await imageCropper.convertPdfPageToImage(pdfBuffer, pageNumber)
+        
+        // 2. Process all crops for this page using the same source image
+        // We can process these in parallel as they are just image cropping operations (CPU bound, not memory bound like PDF render)
+        await Promise.all(tasks.map(async (task) => {
+          try {
+            // Crop
+            const croppedImage = await imageCropper.cropImage(pageImage, task.boundingBox)
+            const base64Data = croppedImage.toString('base64')
+            
+            // Upload
+            let identifier
+            if (task.type === 'question') {
+              identifier = `question_${task.question.id}`
+            } else {
+              identifier = `question_${task.question.id}_option_${task.label}`
+            }
+            
+            const url = await this.uploadBase64ToCloudinary(base64Data, identifier, folder)
+            
+            // Update Question Object
+            if (url) {
+              if (task.type === 'question') {
+                task.question.questionImageUrl = url
+                task.question.diagram = {
+                  present: true,
+                  url: url,
+                  page: pageNumber,
+                  description: 'Extracted diagram from PDF',
+                  uploaded_at: new Date().toISOString()
+                }
+              } else {
+                if (!task.question.optionImages) task.question.optionImages = {}
+                task.question.optionImages[task.label] = url
+              }
+            }
+          } catch (err) {
+            console.error(`     ❌ Failed to extract ${task.type} image for Q${task.question.id}: ${err.message}`)
+          }
+        }))
+        
+        console.log(`   ✅ Page ${pageNumber} complete`)
+        
+      } catch (error) {
+        console.error(`   ❌ Failed to process page ${pageNumber}:`, error.message)
+      }
+    })
+
+    // Execute page processing with concurrency 1 to minimize memory footprint
+    await this.executeWithConcurrencyLimit(pageTasks, 1)
 
     console.log(`\n✅ Image extraction complete`)
   }

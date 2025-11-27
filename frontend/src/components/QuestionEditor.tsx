@@ -232,20 +232,20 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
+          <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
             <span>{totalQuestions} question{totalQuestions !== 1 ? 's' : ''}</span>
             <span className="hidden sm:inline">·</span>
-            <span className="text-blue-600 font-medium">{expandedQuestionIds.size} expanded</span>
+            <span className="text-primary font-medium">{expandedQuestionIds.size} expanded</span>
             {pdfUrl && expandedQuestionIds.size > 0 && (
               <>
                 <span className="hidden sm:inline">·</span>
-                <span className="text-purple-600 text-xs">PDF showing {pagesToShow.length} page{pagesToShow.length !== 1 ? 's' : ''}</span>
+                <span className="text-purple-600 dark:text-purple-400 text-xs">PDF showing {pagesToShow.length} page{pagesToShow.length !== 1 ? 's' : ''}</span>
               </>
             )}
             {!validation.valid && (
               <>
                 <span className="hidden sm:inline">·</span>
-                <span className="text-red-600 font-medium flex items-center gap-1">
+                <span className="text-destructive font-medium flex items-center gap-1">
                   <AlertTriangle className="h-4 w-4" />
                   {validation.errors.length} issue{validation.errors.length !== 1 ? 's' : ''}
                 </span>
@@ -254,24 +254,24 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({
           </div>
           
           {pdfUrl && (
-            <div className="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded p-2">
+            <div className="text-xs text-muted-foreground bg-muted/50 border border-border rounded p-2">
               <span className="font-medium">💡 Tip:</span> Expand multiple questions to see all their pages in the PDF viewer. 
               The most recently selected question's page will be highlighted and centered.
             </div>
           )}
           
           {!validation.valid && (
-            <div className="bg-red-50 border border-red-200 rounded p-3 space-y-1">
-              <p className="text-sm font-medium text-red-800 flex items-center gap-2">
+            <div className="bg-destructive/10 border border-destructive/20 rounded p-3 space-y-1">
+              <p className="text-sm font-medium text-destructive flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4" />
                 Validation Issues Found
               </p>
-              <ul className="text-xs text-red-700 space-y-1 ml-6 list-disc">
+              <ul className="text-xs text-destructive space-y-1 ml-6 list-disc">
                 {validation.errors.slice(0, 5).map((error, idx) => (
                   <li key={idx}>{error.message}</li>
                 ))}
                 {validation.errors.length > 5 && (
-                  <li className="text-red-600 font-medium">
+                  <li className="text-destructive font-medium">
                     ...and {validation.errors.length - 5} more issue{validation.errors.length - 5 !== 1 ? 's' : ''}
                   </li>
                 )}
@@ -279,9 +279,9 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({
             </div>
           )}
           
-          <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
+          <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
             <span className="flex items-center space-x-1">
-              <AlertCircle className="h-4 w-4 text-blue-500" />
+              <AlertCircle className="h-4 w-4 text-primary" />
               <span>Ensure each question has marks and correct answers where applicable.</span>
             </span>
           </div>
@@ -334,8 +334,8 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({
 
           {/* Bulk Settings Panel */}
           {showBulkSettings && (
-            <div className="p-4 border border-blue-200 bg-blue-50 rounded-lg space-y-3">
-              <p className="text-sm font-medium text-gray-700">Apply Negative Marking to All Questions</p>
+            <div className="p-4 border border-primary/20 bg-primary/10 rounded-lg space-y-3">
+              <p className="text-sm font-medium text-foreground">Apply Negative Marking to All Questions</p>
               <div className="flex flex-wrap gap-2">
                 <Button 
                   variant="outline" 
@@ -366,7 +366,7 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({
                   1/2 of Marks
                 </Button>
               </div>
-              <p className="text-xs text-gray-600">
+              <p className="text-xs text-muted-foreground">
                 This will update negative marking for all {totalQuestions} questions based on their positive marks.
               </p>
             </div>
@@ -376,9 +376,9 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({
 
       {/* Manual Question Creator Modal */}
       {showManualCreator && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg max-w-3xl w-full max-h-[90vh] overflow-auto">
-            <div className="sticky top-0 bg-white border-b p-4 flex items-center justify-between">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-background rounded-lg max-w-3xl w-full max-h-[90vh] overflow-auto">
+            <div className="sticky top-0 bg-background border-b p-4 flex items-center justify-between">
               <h3 className="text-lg font-semibold">Add New Question</h3>
               <Button
                 variant="ghost"
@@ -400,7 +400,7 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({
         {pdfUrl ? (
           <PanelGroup direction="horizontal" className="h-full rounded-lg border">
             <Panel defaultSize={50} minSize={30}>
-              <div className="h-full bg-gray-50">
+              <div className="h-full bg-muted/50">
                 <VirtualizedQuestionList
                   questions={questions}
                   expandedQuestionIds={expandedQuestionIds}
@@ -418,10 +418,10 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({
               </div>
             </Panel>
 
-            <PanelResizeHandle className="w-2 bg-gray-200 hover:bg-gray-300 transition-colors" />
+            <PanelResizeHandle className="w-2 bg-border hover:bg-primary/50 transition-colors" />
 
             <Panel defaultSize={50} minSize={20}>
-              <div className="h-full p-4 bg-white">
+              <div className="h-full p-4 bg-background">
                 <PDFErrorBoundary>
                   <PDFViewer
                     pdfUrl={pdfUrl}
@@ -437,7 +437,7 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({
             </Panel>
           </PanelGroup>
         ) : (
-          <div className="h-full bg-gray-50 rounded-lg border">
+          <div className="h-full bg-muted/50 rounded-lg border">
             <VirtualizedQuestionList
               questions={questions}
               expandedQuestionIds={expandedQuestionIds}

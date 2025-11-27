@@ -151,12 +151,12 @@ const FolderSettingsPage: React.FC = () => {
 
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Folder Settings</h1>
-          <p className="text-gray-500 mt-1">Manage settings for {folder.name}</p>
+          <h1 className="text-3xl font-bold text-foreground">Folder Settings</h1>
+          <p className="text-muted-foreground mt-1">Manage settings for {folder.name}</p>
         </div>
         <div className="flex items-center gap-2">
           {isDirty && (
-            <span className="text-sm text-amber-600 font-medium mr-2">
+            <span className="text-sm text-amber-600 dark:text-amber-400 font-medium mr-2">
               Unsaved changes
             </span>
           )}
@@ -196,6 +196,7 @@ const FolderSettingsPage: React.FC = () => {
                 value={description} 
                 onChange={(e) => setDescription(e.target.value)} 
                 placeholder="Folder Description"
+                className="bg-background"
               />
             </div>
           </CardContent>
@@ -243,14 +244,14 @@ const FolderSettingsPage: React.FC = () => {
 
 
             {showInviteSection && (
-              <div className={`p-4 bg-blue-50 rounded-lg border border-blue-100 space-y-4 transition-opacity ${isInviteSectionDisabled ? 'opacity-50 pointer-events-none' : ''}`}>
+              <div className={`p-4 bg-brand/10 rounded-lg border border-brand/20 space-y-4 transition-opacity ${isInviteSectionDisabled ? 'opacity-50 pointer-events-none' : ''}`}>
                 <div className="flex items-center justify-between">
-                  <h3 className="font-medium text-blue-900 flex items-center">
+                  <h3 className="font-medium text-brand flex items-center">
                     <Users className="h-4 w-4 mr-2" />
                     Invite System
                   </h3>
                   {isInviteSectionDisabled && (
-                    <span className="text-xs font-medium text-amber-600 flex items-center bg-amber-50 px-2 py-1 rounded border border-amber-200">
+                    <span className="text-xs font-medium text-warning flex items-center bg-warning/10 px-2 py-1 rounded border border-warning/20">
                       <AlertCircle className="w-3 h-3 mr-1" />
                       Save changes to enable
                     </span>
@@ -259,11 +260,11 @@ const FolderSettingsPage: React.FC = () => {
                 
                 {/* Invite Code */}
                 <div>
-                  <Label className="text-xs font-medium text-blue-700 uppercase tracking-wider mb-1 block">Invite Code</Label>
+                  <Label className="text-xs font-medium text-brand uppercase tracking-wider mb-1 block">Invite Code</Label>
                   <div className="flex gap-2">
                     {folder.inviteCode ? (
                       <>
-                        <div className="flex-1 bg-white border rounded px-3 py-2 font-mono text-lg tracking-widest text-center select-all">
+                        <div className="flex-1 bg-background border rounded px-3 py-2 font-mono text-lg tracking-widest text-center select-all">
                           {folder.inviteCode}
                         </div>
                         <Button 
@@ -298,14 +299,14 @@ const FolderSettingsPage: React.FC = () => {
 
                 {/* Invite Link */}
                 <div>
-                  <Label className="text-xs font-medium text-blue-700 uppercase tracking-wider mb-1 block">Invite Link</Label>
+                  <Label className="text-xs font-medium text-brand uppercase tracking-wider mb-1 block">Invite Link</Label>
                   {folder.inviteLink ? (
                     <>
                       <div className="flex gap-2">
                         <Input 
                           value={`${window.location.origin}/folders/join/${folder.inviteLink}`} 
                           readOnly 
-                          className="flex-1 bg-white"
+                          className="flex-1 bg-background"
                         />
                         <Button 
                           variant="outline"
@@ -329,7 +330,7 @@ const FolderSettingsPage: React.FC = () => {
                         </Button>
                       </div>
                       {folder.inviteLinkExpiry && (
-                        <p className="text-xs text-gray-500 mt-1">
+                        <p className="text-xs text-muted-foreground mt-1">
                           Expires: {new Date(folder.inviteLinkExpiry).toLocaleDateString()}
                         </p>
                       )}
@@ -365,9 +366,9 @@ const FolderSettingsPage: React.FC = () => {
         </Card>
 
         {/* Danger Zone */}
-        <Card className="border-red-200">
+        <Card className="border-destructive/20">
           <CardHeader>
-            <CardTitle className="text-red-600">Danger Zone</CardTitle>
+            <CardTitle className="text-destructive">Danger Zone</CardTitle>
             <CardDescription>Irreversible actions.</CardDescription>
           </CardHeader>
           <CardContent>

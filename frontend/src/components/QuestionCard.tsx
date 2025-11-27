@@ -17,7 +17,6 @@ import {
   Tag, 
   ChevronDown, 
   ChevronUp,
-  AlertCircle,
   Lightbulb
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -124,16 +123,16 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
     let icon = null
 
     if (showCorrectAnswer && isOptionCorrect) {
-      borderColor = 'border-green-500'
-      bgColor = 'bg-green-50 dark:bg-green-900/20'
-      icon = <CheckCircle2 className="w-4 h-4 text-green-600" />
+      borderColor = 'border-success'
+      bgColor = 'bg-success/10'
+      icon = <CheckCircle2 className="w-4 h-4 text-success" />
     } else if (showUserAnswer && isSelected && !isOptionCorrect) {
-      borderColor = 'border-red-500'
-      bgColor = 'bg-red-50 dark:bg-red-900/20'
-      icon = <XCircle className="w-4 h-4 text-red-600" />
+      borderColor = 'border-destructive'
+      bgColor = 'bg-destructive/10'
+      icon = <XCircle className="w-4 h-4 text-destructive" />
     } else if (showUserAnswer && isSelected) {
-      borderColor = 'border-primary'
-      bgColor = 'bg-primary/5'
+      borderColor = 'border-brand'
+      bgColor = 'bg-brand/10'
     }
 
     return (
@@ -147,10 +146,10 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
       >
         <div className={cn(
           "flex-shrink-0 w-6 h-6 rounded-full border flex items-center justify-center mr-3 text-xs font-medium",
-          showCorrectAnswer && isOptionCorrect ? "bg-green-600 border-green-600 text-white" :
-          showUserAnswer && isSelected && !isOptionCorrect ? "bg-red-600 border-red-600 text-white" :
-          showUserAnswer && isSelected ? "bg-primary border-primary text-white" :
-          "bg-muted border-muted-foreground/30 text-muted-foreground"
+          showCorrectAnswer && isOptionCorrect ? "bg-success border-success text-success-foreground" :
+          showUserAnswer && isSelected && !isOptionCorrect ? "bg-destructive border-destructive text-destructive-foreground" :
+          showUserAnswer && isSelected ? "bg-brand border-brand text-brand-foreground" :
+          "bg-muted border-border text-muted-foreground"
         )}>
           {label}
         </div>
@@ -170,11 +169,11 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
   return (
     <Card className={cn(
       "overflow-hidden transition-shadow hover:shadow-md",
-      showUserAnswer && isCorrect === true && "border-l-4 border-l-green-500",
-      showUserAnswer && isCorrect === false && "border-l-4 border-l-red-500",
-      showUserAnswer && isCorrect === undefined && "border-l-4 border-l-gray-300"
+      showUserAnswer && isCorrect === true && "border-l-4 border-l-success",
+      showUserAnswer && isCorrect === false && "border-l-4 border-l-destructive",
+      showUserAnswer && isCorrect === undefined && "border-l-4 border-l-muted"
     )}>
-      <CardHeader className="bg-muted/30 px-6 py-3 border-b flex flex-row justify-between items-center space-y-0">
+      <CardHeader className="bg-muted/50 px-6 py-3 border-b flex flex-row justify-between items-center space-y-0">
         <div className="flex items-center gap-3">
           <Badge variant="outline" className="bg-background font-mono">
             {question.type.replace(/_/g, ' ').toUpperCase()}
@@ -225,30 +224,18 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
                       value={gradeInput}
                       onChange={(e) => setGradeInput(e.target.value)}
                       className={cn(
-                        "w-20 h-8 text-right pr-2",
-                        parseFloat(gradeInput) > question.marks ? "border-red-500 focus-visible:ring-red-500" : ""
+                        "w-20 h-8 text-right pr-2 bg-background",
+                        parseFloat(gradeInput) > question.marks ? "border-destructive focus-visible:ring-destructive" : ""
                       )}
                       max={question.marks}
                       min={0}
                     />
-                    {parseFloat(gradeInput) > question.marks && (
-                       <TooltipProvider>
-                         <Tooltip>
-                           <TooltipTrigger asChild>
-                             <AlertCircle className="w-3 h-3 text-red-500 absolute -top-1 -right-1 bg-background rounded-full" />
-                           </TooltipTrigger>
-                           <TooltipContent>
-                             <p>Cannot exceed max marks ({question.marks})</p>
-                           </TooltipContent>
-                         </Tooltip>
-                       </TooltipProvider>
-                    )}
                   </div>
                   <span className="text-sm text-muted-foreground">/ {question.marks}</span>
-                  <Button size="icon" variant="ghost" className="h-8 w-8 text-green-600" onClick={handleSaveGrade} disabled={parseFloat(gradeInput) > question.marks}>
+                  <Button size="icon" variant="ghost" className="h-8 w-8 text-success hover:text-success hover:bg-success/10" onClick={handleSaveGrade} disabled={parseFloat(gradeInput) > question.marks}>
                     <Save className="w-4 h-4" />
                   </Button>
-                  <Button size="icon" variant="ghost" className="h-8 w-8 text-red-600" onClick={() => setIsEditingGrade(false)}>
+                  <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => setIsEditingGrade(false)}>
                     <X className="w-4 h-4" />
                   </Button>
                 </div>
@@ -256,8 +243,8 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
                 <div className="flex items-center gap-2 group">
                   <span className={cn(
                     "font-bold text-lg",
-                    marksAwarded === question.marks ? "text-green-600" : 
-                    (marksAwarded || 0) > 0 ? "text-yellow-600" : "text-red-600"
+                    marksAwarded === question.marks ? "text-success" : 
+                    (marksAwarded || 0) > 0 ? "text-warning" : "text-destructive"
                   )}>
                     {marksAwarded ?? 0}
                   </span>
@@ -288,7 +275,7 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
                     onClick={onToggleBookmark}
                     className={cn(
                       "h-8 w-8 transition-colors",
-                      isBookmarked ? "text-blue-500 hover:text-blue-600 hover:bg-blue-50" : "text-muted-foreground hover:text-foreground"
+                      isBookmarked ? "text-brand hover:text-brand hover:bg-brand/10" : "text-muted-foreground hover:text-foreground"
                     )}
                   >
                     {isBookmarked ? <BookmarkCheck className="w-5 h-5" /> : <Bookmark className="w-5 h-5" />}
@@ -328,7 +315,7 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
         {(!question.options || question.options.length === 0) && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
              {showUserAnswer && (
-               <div className="bg-muted/30 p-4 rounded-lg border">
+               <div className="bg-muted/50 p-4 rounded-lg border">
                  <h4 className="text-xs font-semibold uppercase text-muted-foreground mb-2">Your Answer</h4>
                  <div className="text-sm">
                    {userAnswer ? (
@@ -340,7 +327,7 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
                </div>
              )}
              {showCorrectAnswer && correctAnswer && (
-               <div className="bg-green-50 dark:bg-green-900/10 p-4 rounded-lg border border-green-100 dark:border-green-900/30">
+               <div className="bg-green-500/10 p-4 rounded-lg border border-green-500/20">
                  <h4 className="text-xs font-semibold uppercase text-green-700 dark:text-green-400 mb-2">Correct Answer</h4>
                  <div className="text-sm text-green-800 dark:text-green-200">
                    {correctAnswer.map((ans, i) => (
@@ -356,7 +343,7 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
         {showExplanation && (
           <>
             {question.explanation ? (
-              <div className="mt-6 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 p-6 rounded-xl border border-blue-200 dark:border-blue-800 shadow-sm">
+              <div className="mt-6 bg-blue-500/5 p-6 rounded-xl border border-blue-500/20 shadow-sm">
                 <h4 className="text-base font-bold text-blue-900 dark:text-blue-100 mb-4 flex items-center gap-2">
                   <BookOpen className="w-5 h-5" />
                   Explanation
@@ -376,7 +363,7 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
                       return (
                         <div key={idx} className="space-y-2">
                           <h5 className="font-semibold text-blue-800 dark:text-blue-200 flex items-center gap-2">
-                            {headerText === 'Your Answer' && <XCircle className="w-4 h-4 text-red-500" />}
+                            {headerText === 'Your Answer' && <XCircle className="w-4 h-4 text-destructive" />}
                             {headerText === 'Correct Answer' && <CheckCircle2 className="w-4 h-4 text-green-500" />}
                             {headerText === 'Tips' && <Lightbulb className="w-4 h-4 text-yellow-500" />}
                             {headerText}
@@ -414,7 +401,7 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
                   size="sm" 
                   onClick={onExplain} 
                   disabled={isExplaining}
-                  className="gap-2 text-blue-600 border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-900/20"
+                  className="gap-2 text-blue-600 border-blue-200 hover:bg-blue-500/10 hover:text-blue-700 dark:border-blue-800 dark:text-blue-400"
                 >
                   {isExplaining ? (
                     <>

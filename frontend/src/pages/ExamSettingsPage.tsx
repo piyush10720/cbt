@@ -248,12 +248,12 @@ const ExamSettingsPage: React.FC = () => {
 
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Exam Settings</h1>
-          <p className="text-gray-500 mt-1">Configure settings for {examData.title}</p>
+          <h1 className="text-3xl font-bold text-foreground">Exam Settings</h1>
+          <p className="text-muted-foreground mt-1">Configure settings for {examData.title}</p>
         </div>
         <div className="flex items-center gap-2">
           {isDirty && (
-            <span className="text-sm text-amber-600 font-medium mr-2">
+            <span className="text-sm text-amber-600 dark:text-amber-400 font-medium mr-2">
               Unsaved changes
             </span>
           )}
@@ -315,16 +315,16 @@ const ExamSettingsPage: React.FC = () => {
                   value={description} 
                   onChange={(e) => setDescription(e.target.value)} 
                   placeholder="Exam Description"
-                  className="min-h-[100px]"
+                  className="min-h-[100px] bg-background"
                 />
               </div>
             </CardContent>
           </Card>
 
           {/* Danger Zone */}
-          <Card className="border-red-200">
+          <Card className="border-destructive/20">
             <CardHeader>
-              <CardTitle className="text-red-600">Danger Zone</CardTitle>
+              <CardTitle className="text-destructive">Danger Zone</CardTitle>
               <CardDescription>Irreversible actions.</CardDescription>
             </CardHeader>
             <CardContent>
@@ -449,18 +449,6 @@ const ExamSettingsPage: React.FC = () => {
                   <Switch 
                     id="negativeMarking"
                     checked={settings.negativeMarking}
-                    onCheckedChange={(checked: boolean) => handleSettingChange('negativeMarking', checked)}
-                  />
-                </div>
-                <div className="flex items-center justify-between space-x-2" title="Coming Soon">
-                   <div className="flex flex-col">
-                      <Label htmlFor="webcamMonitoring">Webcam Proctoring</Label>
-                      <span className="text-[10px] text-blue-600 font-medium">Coming Soon</span>
-                   </div>
-                  <Switch 
-                    id="webcamMonitoring"
-                    checked={settings.webcamMonitoring}
-                    onCheckedChange={(checked: boolean) => handleSettingChange('webcamMonitoring', checked)}
                     disabled
                   />
                 </div>
@@ -480,21 +468,33 @@ const ExamSettingsPage: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="startDate">Start Date & Time</Label>
-                  <Input 
-                    id="startDate"
-                    type="datetime-local"
-                    value={schedule.startDate}
-                    onChange={(e) => setSchedule({ ...schedule, startDate: e.target.value })}
-                  />
+                  <div className="relative">
+                    <Input 
+                      id="startDate"
+                      type="datetime-local"
+                      value={schedule.startDate}
+                      onChange={(e) => setSchedule({ ...schedule, startDate: e.target.value })}
+                      className="pl-10"
+                    />
+                    <div className="absolute left-3 top-2.5 text-muted-foreground">
+                      <Calendar className="h-4 w-4" />
+                    </div>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="endDate">End Date & Time</Label>
-                  <Input 
-                    id="endDate"
-                    type="datetime-local"
-                    value={schedule.endDate}
-                    onChange={(e) => setSchedule({ ...schedule, endDate: e.target.value })}
-                  />
+                  <div className="relative">
+                    <Input 
+                      id="endDate"
+                      type="datetime-local"
+                      value={schedule.endDate}
+                      onChange={(e) => setSchedule({ ...schedule, endDate: e.target.value })}
+                      className="pl-10"
+                    />
+                    <div className="absolute left-3 top-2.5 text-muted-foreground">
+                      <Calendar className="h-4 w-4" />
+                    </div>
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -542,14 +542,14 @@ const ExamSettingsPage: React.FC = () => {
               </div>
 
               {showInviteSection && (
-                <div className={`p-4 bg-blue-50 rounded-lg border border-blue-100 space-y-4 transition-opacity ${isInviteSectionDisabled ? 'opacity-50 pointer-events-none' : ''}`}>
+                <div className={`p-4 bg-blue-500/10 rounded-lg border border-blue-500/20 space-y-4 transition-opacity ${isInviteSectionDisabled ? 'opacity-50 pointer-events-none' : ''}`}>
                   <div className="flex items-center justify-between">
-                    <h3 className="font-medium text-blue-900 flex items-center">
+                    <h3 className="font-medium text-blue-900 dark:text-blue-100 flex items-center">
                       <Users className="h-4 w-4 mr-2" />
                       Invite System
                     </h3>
                     {isInviteSectionDisabled && (
-                      <span className="text-xs font-medium text-amber-600 flex items-center bg-amber-50 px-2 py-1 rounded border border-amber-200">
+                      <span className="text-xs font-medium text-amber-600 dark:text-amber-400 flex items-center bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20">
                         <AlertCircle className="w-3 h-3 mr-1" />
                         Save changes to enable
                       </span>
@@ -558,11 +558,11 @@ const ExamSettingsPage: React.FC = () => {
                   
                   {/* Invite Code */}
                   <div>
-                    <Label className="text-xs font-medium text-blue-700 uppercase tracking-wider mb-1 block">Invite Code</Label>
+                    <Label className="text-xs font-medium text-blue-700 dark:text-blue-300 uppercase tracking-wider mb-1 block">Invite Code</Label>
                     <div className="flex gap-2">
                       {examData.access?.inviteCode ? (
                         <>
-                          <div className="flex-1 bg-white border rounded px-3 py-2 font-mono text-lg tracking-widest text-center select-all">
+                          <div className="flex-1 bg-background border rounded px-3 py-2 font-mono text-lg tracking-widest text-center select-all">
                             {examData.access.inviteCode}
                           </div>
                           <Button 
@@ -597,14 +597,14 @@ const ExamSettingsPage: React.FC = () => {
 
                   {/* Invite Link */}
                   <div>
-                    <Label className="text-xs font-medium text-blue-700 uppercase tracking-wider mb-1 block">Invite Link</Label>
+                    <Label className="text-xs font-medium text-blue-700 dark:text-blue-300 uppercase tracking-wider mb-1 block">Invite Link</Label>
                     {examData.access?.inviteLink ? (
                       <>
                         <div className="flex gap-2">
                           <Input 
                             value={`${window.location.origin}/exams/join/${examData.access.inviteLink}`} 
                             readOnly 
-                            className="flex-1 bg-white"
+                            className="flex-1 bg-background"
                           />
                           <Button 
                             variant="outline"
@@ -628,7 +628,7 @@ const ExamSettingsPage: React.FC = () => {
                           </Button>
                         </div>
                         {examData.access.inviteLinkExpiry && (
-                          <p className="text-xs text-gray-500 mt-1">
+                          <p className="text-xs text-muted-foreground mt-1">
                             Expires: {new Date(examData.access.inviteLinkExpiry).toLocaleDateString()}
                           </p>
                         )}
