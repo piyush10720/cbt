@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import { formatTime } from '@/lib/utils'
-import { AlertCircle, CheckCircle, ChevronLeft, ChevronRight, Clock, Flag, Send, Calculator, BookOpen, Tag, ChevronDown, ChevronUp, Bookmark } from 'lucide-react'
+import { AlertCircle, CheckCircle, ChevronLeft, ChevronRight, Clock, Flag, Send, Calculator, BookOpen, Tag, ChevronDown, ChevronUp, Bookmark, Upload, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { getOptionLabel, getOptionText, hasOptionDiagram, getOptionDiagramUrl } from '@/utils/questionHelpers'
 import ImageModal from '@/components/ImageModal'
@@ -108,6 +108,8 @@ const TakeExamPage: React.FC = () => {
   const [showTagsExpanded, setShowTagsExpanded] = useState(false)
   const [bookmarkedQuestions, setBookmarkedQuestions] = useState<Set<string>>(new Set())
   const [loadingBookmark, setLoadingBookmark] = useState<Record<string, boolean>>({})
+  const [uploadingImage, setUploadingImage] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const {
     data,
@@ -574,6 +576,62 @@ const TakeExamPage: React.FC = () => {
     }
   }
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !currentQuestionId) return
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image size should be less than 5MB')
+      return
+    }
+
+    setUploadingImage(true)
+    try {
+      // Use imageUploadAPI directly instead of generic uploadAPI
+      // We need to cast to any because api.ts might not have the updated signature yet
+      // or we can use the existing signature and pass type as 'answer' in metadata
+      // checking api.ts, imageUploadAPI.uploadDiagram takes metadata with type 'question' | 'option'
+      // We might need to cast type to any to bypass TS check if we didn't update api.ts types
+      const response = await import('@/lib/api').then(m => m.imageUploadAPI.uploadDiagram(file, {
+        type: 'answer' as any,
+        questionId: currentQuestionId
+      }))
+
+      const imageUrl = response.data.data.url
+      
+      const currentAnswer = answers[currentQuestionId] || { text: '', images: [] }
+      const newAnswer = {
+        ...currentAnswer,
+        images: [...(currentAnswer.images || []), imageUrl]
+      }
+      
+      handleAnswerChange(currentQuestionId, newAnswer)
+      toast.success('Image uploaded successfully')
+    } catch (error) {
+      console.error('Upload error:', error)
+      toast.error('Failed to upload image')
+    } finally {
+      setUploadingImage(false)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    }
+  }
+
+  const removeImage = (indexToRemove: number) => {
+    if (!currentQuestionId) return
+    
+    const currentAnswer = answers[currentQuestionId]
+    if (!currentAnswer) return
+
+    const newAnswer = {
+      ...currentAnswer,
+      images: currentAnswer.images.filter((_: string, index: number) => index !== indexToRemove)
+    }
+    
+    handleAnswerChange(currentQuestionId, newAnswer)
+  }
+
   if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center">
@@ -819,6 +877,71 @@ const TakeExamPage: React.FC = () => {
                                 </label>
                               )
                             })}
+                          </div>
+                        )
+
+                      case 'descriptive':
+                        const descriptiveAnswer = answerValue || { text: '', images: [] }
+                        return (
+                          <div className="space-y-4">
+                            <textarea
+                              className="w-full min-h-[200px] p-4 rounded-lg border border-input bg-background resize-y focus:outline-none focus:ring-2 focus:ring-ring"
+                              placeholder="Type your answer here..."
+                              value={descriptiveAnswer.text || (typeof descriptiveAnswer === 'string' ? descriptiveAnswer : '')}
+                              onChange={(e) => handleAnswerChange(currentQuestionId, {
+                                ...descriptiveAnswer,
+                                text: e.target.value
+                              })}
+                            />
+                            
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => fileInputRef.current?.click()}
+                                  disabled={uploadingImage}
+                                >
+                                  {uploadingImage ? (
+                                    <LoadingSpinner size="sm" className="mr-2" />
+                                  ) : (
+                                    <Upload className="h-4 w-4 mr-2" />
+                                  )}
+                                  Upload Image
+                                </Button>
+                                <input
+                                  type="file"
+                                  ref={fileInputRef}
+                                  className="hidden"
+                                  accept="image/*"
+                                  onChange={handleImageUpload}
+                                />
+                                <span className="text-xs text-muted-foreground">
+                                  Max size: 5MB. Supported formats: JPG, PNG, GIF
+                                </span>
+                              </div>
+
+                              {descriptiveAnswer.images && descriptiveAnswer.images.length > 0 && (
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-4">
+                                  {descriptiveAnswer.images.map((url: string, idx: number) => (
+                                    <div key={idx} className="relative group aspect-video rounded-lg border overflow-hidden bg-muted">
+                                      <img
+                                        src={url}
+                                        alt={`Answer image ${idx + 1}`}
+                                        className="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                                        onClick={() => setModalImage({ src: url, alt: `Answer image ${idx + 1}` })}
+                                      />
+                                      <button
+                                        onClick={() => removeImage(idx)}
+                                        className="absolute top-2 right-2 p-1 rounded-full bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70"
+                                      >
+                                        <X className="h-4 w-4" />
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
                           </div>
                         )
                       

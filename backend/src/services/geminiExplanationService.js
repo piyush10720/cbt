@@ -25,13 +25,13 @@ class GeminiExplanationService {
     }
   }
 
-  async generateExplanation({ question, answerRecord, examTitle }) {
+  async generateExplanation({ question, answerRecord, examTitle, images = [] }) {
     if (!this.apiKey) {
       throw new Error('Gemini API key not configured');
     }
 
-    const userAnswer = this.serializeAnswer(answerRecord.userAnswer);
-    const correctAnswer = this.serializeAnswer(answerRecord.correctAnswer && answerRecord.correctAnswer.length > 0 ? answerRecord.correctAnswer : question.correct);
+    const userAnswer = this.serializeAnswer(answerRecord.userAnswer, question);
+    const correctAnswer = this.serializeAnswer(answerRecord.correctAnswer && answerRecord.correctAnswer.length > 0 ? answerRecord.correctAnswer : question.correct, question);
 
     const prompt = this.buildPrompt({
       examTitle,
@@ -39,15 +39,36 @@ class GeminiExplanationService {
       userAnswer,
       correctAnswer,
       isCorrect: answerRecord.isCorrect,
-      marksAwarded: answerRecord.marksAwarded
+      marksAwarded: answerRecord.marksAwarded,
+      hasImages: images.length > 0
     });
 
-      const response = await axios.post(
+    const parts = [{ text: prompt }];
+
+    // Fetch and attach images
+    for (const img of images) {
+      try {
+        const base64Data = await this.fetchImageAsBase64(img.url);
+        if (base64Data) {
+          parts.push({
+            inlineData: {
+              mimeType: img.mimeType || 'image/jpeg',
+              data: base64Data
+            }
+          });
+          parts.push({ text: `\n[Image Context: ${img.label || 'Related Image'}]` });
+        }
+      } catch (error) {
+        console.warn(`Failed to fetch image for explanation: ${img.url}`, error.message);
+      }
+    }
+
+    const response = await axios.post(
       this.baseUrl,
       {
         contents: [{
           role: 'user',
-          parts: [{ text: prompt }]
+          parts: parts
         }]
       },
       {
@@ -55,7 +76,7 @@ class GeminiExplanationService {
           'Content-Type': 'application/json',
           'x-goog-api-key': this.apiKey
         },
-        timeout: 30000
+        timeout: 60000 // Increased timeout for image processing
       }
     );
 
@@ -71,23 +92,69 @@ class GeminiExplanationService {
     return this.safeParseResponse(text);
   }
 
-  serializeAnswer(answer) {
+  async fetchImageAsBase64(url) {
+    try {
+      const response = await axios.get(url, { responseType: 'arraybuffer' });
+      return Buffer.from(response.data, 'binary').toString('base64');
+    } catch (error) {
+      console.error('Error fetching image:', error.message);
+      return null;
+    }
+  }
+
+  serializeAnswer(answer, question) {
     if (Array.isArray(answer)) {
-      return answer.join(', ');
+      return answer.map(a => this.resolveAnswerToText(a, question)).join('\n');
     }
-    if (answer === null || answer === undefined) {
-      return 'No answer provided';
+    return this.resolveAnswerToText(answer, question);
+  }
+
+  resolveAnswerToText(answer, question) {
+    if (answer === null || answer === undefined) return 'No answer provided';
+    if (question.type === 'descriptive') {
+        return (answer && typeof answer === 'object' && answer.text) ? answer.text : String(answer);
     }
+
+    const normalize = s => String(s).trim().toUpperCase();
+    const target = normalize(answer);
+
+    const options = question.options || [];
+    for (let i = 0; i < options.length; i++) {
+        const opt = options[i];
+        // Determine label (A, B, C...)
+        const label = typeof opt === 'string' 
+            ? String.fromCharCode(65 + i) 
+            : (opt.label || String.fromCharCode(65 + i));
+        
+        // Determine text
+        const text = typeof opt === 'string' ? opt : (opt.text || opt.label || 'Image Option');
+
+        // Check if answer matches label
+        if (normalize(label) === target) {
+            return `${label}. ${text}`;
+        }
+        
+        // Check if answer matches text (fallback)
+        if (normalize(text) === target) {
+            return `${label}. ${text}`;
+        }
+    }
+
     return String(answer);
   }
 
-  buildPrompt({ examTitle, question, userAnswer, correctAnswer, isCorrect, marksAwarded }) {
-    return `You are an exam explanation assistant. Provide a short, factual explanation for the question and answers provided. Avoid any personal or sensitive information. Respond in strictly valid JSON with keys "overview", "why_user_answer", "why_correct_answer", "tips".
+  buildPrompt({ examTitle, question, userAnswer, correctAnswer, isCorrect, marksAwarded, hasImages }) {
+    return `You are an exam explanation assistant. Provide a short, factual explanation for the question and answers provided. ${hasImages ? 'Refer to the provided images (diagrams or user answers) where relevant.' : ''} Avoid any personal or sensitive information. Respond in strictly valid JSON with keys "overview", "why_user_answer", "why_correct_answer", "tips".
 
 Exam Title: ${examTitle}
 Question Type: ${question.type}
 Question Text: ${question.text}
-Options: ${(question.options || []).map((option, index) => `${String.fromCharCode(65 + index)}. ${option}`).join(' | ') || 'N/A'}
+Options:
+${(question.options || []).map((option, index) => {
+    const label = typeof option === 'string' ? String.fromCharCode(65 + index) : (option.label || String.fromCharCode(65 + index));
+    const text = typeof option === 'string' ? option : (option.text || option.label || 'Image Option');
+    return `${label}. ${text}`;
+}).join('\n') || 'N/A'}
 User Answer: ${userAnswer}
 Correct Answer: ${correctAnswer}
 Was User Answer Correct: ${isCorrect}

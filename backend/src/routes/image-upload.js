@@ -69,6 +69,8 @@ router.post('/diagram', upload.single('image'), async (req, res) => {
       resource_type: 'image',
       public_id: type === 'option' 
         ? `question_${questionId}_option_${optionLabel}_${Date.now()}`
+        : type === 'answer'
+        ? `answer_${questionId}_${Date.now()}`
         : `question_${questionId}_${Date.now()}`,
       overwrite: true,
       transformation: [
@@ -140,6 +142,8 @@ router.post('/diagram-base64', async (req, res) => {
       resource_type: 'image',
       public_id: type === 'option' 
         ? `question_${questionId}_option_${optionLabel}_${Date.now()}`
+        : type === 'answer'
+        ? `answer_${questionId}_${Date.now()}`
         : `question_${questionId}_${Date.now()}`,
       overwrite: true,
       transformation: [

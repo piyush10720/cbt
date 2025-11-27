@@ -621,12 +621,50 @@ const explainAnswer = async (req, res) => {
       });
     }
 
+    // Collect images for context
+    const images = [];
+
+    // 1. Question Diagram
+    if (question.diagram && question.diagram.url) {
+      images.push({
+        url: question.diagram.url,
+        label: 'Question Diagram',
+        mimeType: 'image/jpeg' // Assuming JPEG, or could infer from extension
+      });
+    }
+
+    // 2. Option Diagrams
+    if (question.options && Array.isArray(question.options)) {
+      question.options.forEach((opt, idx) => {
+        if (typeof opt === 'object' && opt.diagram && opt.diagram.url) {
+          images.push({
+            url: opt.diagram.url,
+            label: `Option ${String.fromCharCode(65 + idx)} Diagram`,
+            mimeType: 'image/jpeg'
+          });
+        }
+      });
+    }
+
+    // 3. User Answer Images (for descriptive)
+    if (question.type === 'descriptive' && answerRecord.userAnswer && typeof answerRecord.userAnswer === 'object' && Array.isArray(answerRecord.userAnswer.images)) {
+      answerRecord.userAnswer.images.forEach((imgUrl, idx) => {
+        images.push({
+          url: imgUrl,
+          label: `User Answer Image ${idx + 1}`,
+          mimeType: 'image/jpeg'
+        });
+      });
+    }
+
     // Generate new explanation using AI
-    console.log('Generating new explanation for question:', questionId);
+    console.log('Generating new explanation for question:', questionId, 'with', images.length, 'images');
+    console.log('Question options count:', question.options ? question.options.length : 0);
     const explanation = await geminiExplanationService.generateExplanation({
       question,
       answerRecord,
-      examTitle: result.examId.title
+      examTitle: result.examId.title,
+      images
     });
 
     // Save to cache
