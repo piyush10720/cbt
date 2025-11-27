@@ -21,6 +21,7 @@ import JoinFolderPage from '@/pages/JoinFolderPage'
 import JoinFolderByLinkPage from '@/pages/JoinFolderByLinkPage'
 import FolderSettingsPage from '@/pages/FolderSettingsPage'
 import ExamSettingsPage from '@/pages/ExamSettingsPage'
+import LandingPage from '@/pages/LandingPage'
 
 // Components
 import Layout from '@/components/Layout'
@@ -86,6 +87,14 @@ const AppRoutes: React.FC = () => {
     <Routes>
       {/* Public Routes */}
       <Route
+        path="/"
+        element={
+          <PublicRoute>
+            <LandingPage />
+          </PublicRoute>
+        }
+      />
+      <Route
         path="/login"
         element={
           <PublicRoute>
@@ -104,14 +113,12 @@ const AppRoutes: React.FC = () => {
 
       {/* Protected Routes */}
       <Route
-        path="/"
         element={
           <ProtectedRoute>
             <Layout />
           </ProtectedRoute>
         }
       >
-        <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="exams" element={<ExamsPage />} />
         <Route
