@@ -9,7 +9,14 @@ const {
   deleteExam,
   startExam,
   mergeExams,
-  createExamValidation
+
+  createExamValidation,
+  generateInviteCode,
+  revokeInviteCode,
+  generateInviteLink,
+  revokeInviteLink,
+  addUserToExam,
+  removeUserFromExam
 } = require('../controllers/examController');
 const { authenticate, authorize } = require('../middleware/auth');
 
@@ -30,5 +37,13 @@ router.put('/:id', authorize('teacher', 'admin'), updateExam);
 router.post('/:id/publish', authorize('teacher', 'admin'), publishExam);
 router.post('/:id/unpublish', authorize('teacher', 'admin'), unpublishExam);
 router.delete('/:id', authorize('teacher', 'admin'), deleteExam);
+
+// Invite system routes
+router.post('/:id/invite-code', authorize('teacher', 'admin'), generateInviteCode);
+router.delete('/:id/invite-code', authorize('teacher', 'admin'), revokeInviteCode);
+router.post('/:id/invite-link', authorize('teacher', 'admin'), generateInviteLink);
+router.delete('/:id/invite-link', authorize('teacher', 'admin'), revokeInviteLink);
+router.post('/:id/users/add', authorize('teacher', 'admin'), addUserToExam);
+router.post('/:id/users/remove', authorize('teacher', 'admin'), removeUserFromExam);
 
 module.exports = router;

@@ -7,8 +7,25 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import { formatDate, formatRelativeTime, getGradeFromPercentage, getPerformanceColor } from '@/lib/utils'
-import { AlertCircle, Award, BarChart3, Clock, Filter, Search } from 'lucide-react'
+import Breadcrumbs from '@/components/Breadcrumbs'
+import { 
+  AlertCircle, 
+  Award, 
+  BarChart3, 
+  Clock, 
+  Filter, 
+  Search, 
+  Trophy, 
+  Target, 
+  TrendingUp,
+  Calendar,
+  ArrowRight,
+  CheckCircle2,
+  XCircle
+} from 'lucide-react'
 import toast from 'react-hot-toast'
+import { Badge } from '@/components/ui/badge'
+import { motion } from 'framer-motion'
 
 interface ResultsResponse {
   results: Result[]
@@ -101,47 +118,100 @@ const ResultsPage: React.FC = () => {
   const canGoPrev = pagination ? pagination.current > 1 : false
   const canGoNext = pagination ? pagination.current < (pagination.pages || 1) : false
 
+  const container = {
+    hidden: { opacity: 0 },
+    show: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1
+      }
+    }
+  }
+
+  const item = {
+    hidden: { opacity: 0, y: 20 },
+    show: { opacity: 1, y: 0 }
+  }
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="space-y-8 pb-12">
+      {/* Header Section */}
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Exam Results</h1>
-          <p className="text-sm text-gray-500">Review your past exam attempts and analytics.</p>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">Exam Results</h1>
+          <p className="text-muted-foreground mt-1">Track your progress and analyze your performance.</p>
         </div>
-        <Button onClick={() => refetch()} variant="outline" disabled={isFetching}>
-          {isFetching ? 'Refreshing…' : 'Refresh'}
-        </Button>
+        <div className="flex items-center gap-2">
+           <Button onClick={() => refetch()} variant="outline" disabled={isFetching} className="gap-2">
+            <Clock className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
+            {isFetching ? 'Refreshing...' : 'Refresh Data'}
+          </Button>
+        </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Search & Filters</CardTitle>
-          <CardDescription>Find specific attempts quickly.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            <div className="relative w-full lg:w-80">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+      {/* Stats Overview */}
+      {aggregate && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatsCard 
+            title="Total Attempts" 
+            value={aggregate.totalAttempts} 
+            icon={Trophy}
+            color="bg-blue-500"
+            trend="Lifetime"
+          />
+          <StatsCard 
+            title="Average Score" 
+            value={`${aggregate.averageScore}%`} 
+            icon={Target}
+            color="bg-purple-500"
+            trend="Overall"
+          />
+          <StatsCard 
+            title="Best Score" 
+            value={`${aggregate.highestScore}%`} 
+            icon={Award}
+            color="bg-amber-500"
+            trend="Personal Best"
+          />
+          <StatsCard 
+            title="Latest Activity" 
+            value={formatRelativeTime(aggregate.latestAttempt.timing.submittedAt || aggregate.latestAttempt.timing.startedAt)} 
+            icon={Clock}
+            color="bg-green-500"
+            trend={aggregate.latestAttempt.exam.title}
+          />
+        </div>
+      )}
+
+      {/* Search and Filter Bar */}
+      <Card className="border-none shadow-sm bg-muted/30">
+        <CardContent className="p-4">
+          <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
+            <div className="relative w-full lg:w-96">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
-                placeholder="Search by exam title or description"
-                className="pl-9"
+                placeholder="Search exams..."
+                className="pl-9 bg-background border-muted focus:border-primary transition-colors"
               />
             </div>
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-gray-500" />
+            
+            <div className="flex items-center gap-2 w-full lg:w-auto overflow-x-auto pb-2 lg:pb-0">
+              <Filter className="h-4 w-4 text-muted-foreground shrink-0" />
               <div className="flex gap-2">
                 {[
                   { label: 'All', value: 'all' },
                   { label: 'Completed', value: 'completed' },
                   { label: 'Submitted', value: 'submitted' },
-                  { label: 'Auto Submitted', value: 'auto_submitted' }
+                  { label: 'Pending', value: 'auto_submitted' }
                 ].map((option) => (
                   <Button
                     key={option.value}
-                    variant={statusFilter === option.value ? 'default' : 'outline'}
+                    variant={statusFilter === option.value ? 'default' : 'ghost'}
+                    size="sm"
                     onClick={() => handleStatusChange(option.value)}
+                    className="whitespace-nowrap"
                   >
                     {option.label}
                   </Button>
@@ -149,170 +219,165 @@ const ResultsPage: React.FC = () => {
               </div>
             </div>
           </div>
-          {pagination && (
-            <p className="text-xs text-gray-500">
-              Showing {results.length} of {pagination.total} attempts
-            </p>
-          )}
         </CardContent>
       </Card>
 
+      {/* Results List */}
       {isLoading ? (
-        <div className="flex justify-center py-16">
+        <div className="flex justify-center py-20">
           <LoadingSpinner size="lg" />
         </div>
       ) : isError ? (
-        <Card>
+        <Card className="border-destructive/20 bg-destructive/5">
           <CardContent className="py-12 text-center space-y-4">
-            <AlertCircle className="mx-auto h-12 w-12 text-red-500" />
-            <h2 className="text-xl font-semibold text-gray-800">Unable to load results</h2>
-            <p className="text-gray-500">{(error as any)?.message || 'Please try again later.'}</p>
-            <Button variant="outline" onClick={() => refetch()}>
-              Retry
-            </Button>
+            <AlertCircle className="mx-auto h-12 w-12 text-destructive" />
+            <h2 className="text-xl font-semibold text-destructive">Unable to load results</h2>
+            <p className="text-muted-foreground">{(error as any)?.message || 'Please try again later.'}</p>
+            <Button variant="outline" onClick={() => refetch()}>Retry</Button>
           </CardContent>
         </Card>
       ) : results.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center space-y-3">
-            <h2 className="text-xl font-semibold text-gray-800">No results found</h2>
-            <p className="text-gray-500">Complete an exam to view your performance here.</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <>
-          {aggregate && (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <Card className="border-blue-200">
-                <CardHeader>
-                  <CardTitle className="text-sm text-blue-700">Total Attempts</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-3xl font-bold text-blue-900">{aggregate.totalAttempts}</p>
-                </CardContent>
-              </Card>
-              <Card className="border-green-200">
-                <CardHeader>
-                  <CardTitle className="text-sm text-green-700">Average Score</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className={`text-3xl font-bold ${getPerformanceColor(aggregate.averageScore)}`}>
-                    {aggregate.averageScore}%
-                  </p>
-                </CardContent>
-              </Card>
-              <Card className="border-purple-200">
-                <CardHeader>
-                  <CardTitle className="text-sm text-purple-700">Best Performance</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className={`text-3xl font-bold ${getPerformanceColor(aggregate.highestScore)}`}>
-                    {aggregate.highestScore}%
-                  </p>
-                </CardContent>
-              </Card>
-              <Card className="border-gray-200">
-                <CardHeader>
-                  <CardTitle className="text-sm text-gray-700">Latest Attempt</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-1 text-sm text-gray-600">
-                  <p className="text-gray-900 font-medium">{aggregate.latestAttempt.exam.title}</p>
-                  <p>Score: {aggregate.latestAttempt.score} / {aggregate.latestAttempt.totalMarks}</p>
-                  <p>Submitted {formatRelativeTime(aggregate.latestAttempt.timing.submittedAt || aggregate.latestAttempt.timing.startedAt)}</p>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
-          <div className="grid gap-4">
-            {results.map((item) => {
-              const grade = getGradeFromPercentage(item.percentage)
-              const performance = getPerformanceColor(item.percentage)
-
-              return (
-                <Card key={item.id} className="hover:shadow-md transition-shadow">
-                  <CardHeader className="space-y-1">
-                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                      <div>
-                        <CardTitle className="text-xl text-gray-900">{item.exam.title}</CardTitle>
-                        <CardDescription className="text-sm text-gray-500">
-                          Attempt #{item.attemptNumber} · {formatDate(item.timing.startedAt)}
-                        </CardDescription>
-                      </div>
-                      <div className="text-right">
-                        <p className={`text-3xl font-semibold ${performance}`}>{item.percentage}%</p>
-                        <p className="text-xs uppercase tracking-wide text-gray-400">Grade {grade}</p>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid sm:grid-cols-4 gap-4 text-sm text-gray-600">
-                      <div>
-                        <p className="text-xs uppercase text-gray-400">Score</p>
-                        <p className="text-gray-900 font-medium">{item.score} / {item.totalMarks}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs uppercase text-gray-400">Status</p>
-                        <p className="capitalize">{item.status.replace('_', ' ')}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs uppercase text-gray-400">Time Spent</p>
-                        <p>{Math.round(item.timing.totalTimeSpent / 60)} min</p>
-                      </div>
-                      <div>
-                        <p className="text-xs uppercase text-gray-400">Submitted</p>
-                        <p>{item.timing.submittedAt ? formatRelativeTime(item.timing.submittedAt) : 'Pending submission'}</p>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
-                      <span className="flex items-center space-x-1">
-                        <Award className="h-4 w-4 text-green-600" />
-                        <span>Correct: {item.analytics?.correctAnswers ?? '-'}</span>
-                      </span>
-                      <span className="flex items-center space-x-1">
-                        <BarChart3 className="h-4 w-4 text-red-500" />
-                        <span>Incorrect: {item.analytics?.incorrectAnswers ?? '-'}</span>
-                      </span>
-                      <span className="flex items-center space-x-1">
-                        <Clock className="h-4 w-4 text-blue-500" />
-                        <span>Avg time/question: {item.analytics?.averageTimePerQuestion ?? '-'}s</span>
-                      </span>
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
-                      <Button onClick={() => navigate(`/results/${item.id}`)} size="sm">
-                        View Details
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => navigate(`/exams/${item.exam.id}`)}>
-                        View Exam
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              )
-            })}
+        <div className="text-center py-20 bg-muted/10 rounded-xl border border-dashed">
+          <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+            <BarChart3 className="h-8 w-8 text-muted-foreground" />
           </div>
+          <h3 className="text-lg font-medium">No results found</h3>
+          <p className="text-muted-foreground mt-1 mb-6">Complete an exam to see your performance analytics here.</p>
+          <Button onClick={() => navigate('/exams')}>Browse Exams</Button>
+        </div>
+      ) : (
+        <motion.div 
+          variants={container}
+          initial="hidden"
+          animate="show"
+          className="space-y-4"
+        >
+          {results.map((result) => {
+            const grade = getGradeFromPercentage(result.percentage)
+            const performanceColor = getPerformanceColor(result.percentage)
+            
+            return (
+              <motion.div variants={item} key={result.id}>
+                <Card className="group hover:shadow-md transition-all border-l-4 border-l-transparent hover:border-l-primary overflow-hidden">
+                  <div className="flex flex-col md:flex-row">
+                    {/* Left: Exam Info */}
+                    <div className="flex-1 p-6">
+                      <div className="flex items-start justify-between mb-4">
+                        <div>
+                          <h3 className="text-lg font-semibold group-hover:text-primary transition-colors mb-1">
+                            {result.exam.title}
+                          </h3>
+                          <div className="flex items-center text-sm text-muted-foreground gap-4">
+                            <span className="flex items-center">
+                              <Calendar className="w-3.5 h-3.5 mr-1" />
+                              {formatDate(result.timing.startedAt)}
+                            </span>
+                            <span className="flex items-center">
+                              <Clock className="w-3.5 h-3.5 mr-1" />
+                              {Math.round(result.timing.totalTimeSpent / 60)} mins
+                            </span>
+                          </div>
+                        </div>
+                        <Badge variant={
+                          result.status === 'completed' ? 'default' : 
+                          result.status === 'submitted' ? 'secondary' : 'outline'
+                        }>
+                          {result.status.replace('_', ' ')}
+                        </Badge>
+                      </div>
 
-          {pagination && pagination.pages > 1 && (
-            <div className="flex items-center justify-between pt-4">
-              <p className="text-xs text-gray-500">
-                Page {pagination.current} of {pagination.pages}
-              </p>
-              <div className="flex gap-2">
-                <Button variant="outline" disabled={!canGoPrev} onClick={() => setPage((prev) => Math.max(prev - 1, 1))}>
-                  Previous
-                </Button>
-                <Button variant="outline" disabled={!canGoNext} onClick={() => setPage((prev) => prev + 1)}>
-                  Next
-                </Button>
-              </div>
-            </div>
-          )}
-        </>
+                      <div className="grid grid-cols-3 gap-4 mt-6">
+                        <div className="bg-muted/30 p-3 rounded-lg">
+                          <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Score</p>
+                          <p className="font-semibold">{result.score} / {result.totalMarks}</p>
+                        </div>
+                        <div className="bg-muted/30 p-3 rounded-lg">
+                          <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Correct</p>
+                          <div className="flex items-center text-green-600 font-medium">
+                            <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                            {result.analytics?.correctAnswers ?? '-'}
+                          </div>
+                        </div>
+                        <div className="bg-muted/30 p-3 rounded-lg">
+                          <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Incorrect</p>
+                          <div className="flex items-center text-red-500 font-medium">
+                            <XCircle className="w-3.5 h-3.5 mr-1" />
+                            {result.analytics?.incorrectAnswers ?? '-'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right: Score & Actions */}
+                    <div className="md:w-64 bg-muted/10 p-6 flex flex-col items-center justify-center border-t md:border-t-0 md:border-l">
+                      <div className="text-center mb-4">
+                        <span className={`text-4xl font-bold ${performanceColor}`}>
+                          {result.percentage}%
+                        </span>
+                        <p className="text-sm text-muted-foreground font-medium mt-1">Grade {grade}</p>
+                      </div>
+                      
+                      <div className="w-full space-y-2">
+                        <Button className="w-full" onClick={() => navigate(`/results/${result.id}`)}>
+                          View Analysis <ArrowRight className="w-4 h-4 ml-2" />
+                        </Button>
+                        <Button variant="ghost" className="w-full text-xs text-muted-foreground" onClick={() => navigate(`/exams/${result.exam.id}`)}>
+                          View Exam Details
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              </motion.div>
+            )
+          })}
+        </motion.div>
+      )}
+
+      {/* Pagination */}
+      {pagination && pagination.pages > 1 && (
+        <div className="flex items-center justify-between pt-4 border-t">
+          <p className="text-sm text-muted-foreground">
+            Page {pagination.current} of {pagination.pages}
+          </p>
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              size="sm"
+              disabled={!canGoPrev} 
+              onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+            >
+              Previous
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              disabled={!canGoNext} 
+              onClick={() => setPage((prev) => prev + 1)}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
       )}
     </div>
   )
 }
+
+const StatsCard = ({ title, value, icon: Icon, color, trend }: any) => (
+  <Card className="overflow-hidden border-none shadow-md relative">
+    <div className={`absolute top-0 right-0 p-4 opacity-10 ${color.replace('bg-', 'text-')}`}>
+      <Icon className="w-16 h-16" />
+    </div>
+    <CardContent className="p-6 relative z-10">
+      <div className={`w-10 h-10 rounded-xl ${color} flex items-center justify-center text-white shadow-lg mb-4`}>
+        <Icon className="w-5 h-5" />
+      </div>
+      <p className="text-sm font-medium text-muted-foreground">{title}</p>
+      <h3 className="text-2xl font-bold mt-1">{value}</h3>
+      <p className="text-xs text-muted-foreground mt-2 truncate max-w-[140px]">{trend}</p>
+    </CardContent>
+  </Card>
+)
 
 export default ResultsPage

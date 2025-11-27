@@ -190,18 +190,24 @@ questionSchema.pre('validate', function(next) {
     if (!this.correct || this.correct.length === 0) {
       return next(new Error('Numeric questions must have correct answer'));
     }
-    // Allow range format: "min-max" or single numeric value
+    // Allow range format: "min to max" or single numeric value
     const answerStr = this.correct[0];
-    if (answerStr.includes('-') && answerStr.split('-').length === 2) {
+    if (answerStr.includes(' to ')) {
       // Range format
-      const [min, max] = answerStr.split('-').map(s => parseFloat(s.trim()));
-      if (isNaN(min) || isNaN(max) || min >= max) {
-        return next(new Error('Numeric range must be valid: min-max (e.g., 41.5-42.5)'));
+      const parts = answerStr.split(' to ');
+      if (parts.length === 2) {
+        const min = parseFloat(parts[0].trim());
+        const max = parseFloat(parts[1].trim());
+        if (isNaN(min) || isNaN(max) || min > max) {
+          return next(new Error('Numeric range must be valid: min to max (e.g., 10 to 20) where min <= max'));
+        }
+      } else {
+        return next(new Error('Numeric range must be valid: min to max'));
       }
     } else {
       // Single value
       if (isNaN(parseFloat(answerStr))) {
-        return next(new Error('Numeric questions must have numeric correct answer or range (min-max)'));
+        return next(new Error('Numeric questions must have numeric correct answer or range (min to max)'));
       }
     }
   }
@@ -247,15 +253,22 @@ questionSchema.methods.isCorrect = function(userAnswer) {
       
       const answerStr = this.correct[0];
       
-      // Check if range format (min-max)
-      if (answerStr.includes('-') && answerStr.split('-').length === 2) {
-        const [min, max] = answerStr.split('-').map(s => parseFloat(s.trim()));
-        return userNum >= min && userNum <= max;
-      } else {
-        // Single value - allow small floating point differences
-        const correctNum = parseFloat(answerStr);
+      // Check if range format (min to max)
+      if (answerStr.includes(' to ')) {
+        const parts = answerStr.split(' to ');
+        if (parts.length === 2) {
+          const min = parseFloat(parts[0].trim());
+          const max = parseFloat(parts[1].trim());
+          return userNum >= min && userNum <= max;
+        }
+      }
+      
+      // Single value - allow small floating point differences
+      const correctNum = parseFloat(answerStr);
+      if (!isNaN(correctNum)) {
         return Math.abs(correctNum - userNum) < 0.001;
       }
+      return false;
     
     case 'descriptive':
       // Descriptive questions need manual evaluation

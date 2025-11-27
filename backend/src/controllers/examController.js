@@ -133,6 +133,8 @@ const getExams = async (req, res) => {
           { folders: null },
           { folders: { $size: 0 } }
         ];
+      } else if(folderId=='all'){
+        //all exams irrespective of folder 
       } else {
         filter.folders = folderId;
       }
@@ -232,7 +234,7 @@ const getExamById = async (req, res) => {
     const canViewQuestions = includeQuestions === 'true' && (isCreator || req.user.role === 'admin');
 
     // Check access permissions
-    if (!exam.canUserAccess(req.user.id) && req.user.role !== 'admin') {
+    if (!isCreator && !exam.canUserAccess(req.user.id) && req.user.role !== 'admin') {
       return res.status(403).json({
         message: 'Access denied'
       });
@@ -739,6 +741,165 @@ const mergeExams = async (req, res) => {
   }
 };
 
+
+
+// Generate invite code
+const generateInviteCode = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const exam = await Exam.findById(id);
+    
+    if (!exam) {
+      return res.status(404).json({ message: 'Exam not found' });
+    }
+
+    if (exam.createdBy.toString() !== req.user.id.toString()) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const crypto = require('crypto');
+    const code = crypto.randomBytes(4).toString('hex').toUpperCase();
+    
+    exam.access.inviteCode = code;
+    await exam.save();
+
+    res.json({ 
+      message: 'Invite code generated', 
+      inviteCode: code 
+    });
+  } catch (error) {
+    console.error('Generate invite code error:', error);
+    res.status(500).json({ message: 'Failed to generate invite code' });
+  }
+};
+
+// Revoke invite code
+const revokeInviteCode = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const exam = await Exam.findById(id);
+    
+    if (!exam) {
+      return res.status(404).json({ message: 'Exam not found' });
+    }
+
+    if (exam.createdBy.toString() !== req.user.id.toString()) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    exam.access.inviteCode = undefined;
+    await exam.save();
+
+    res.json({ message: 'Invite code revoked' });
+  } catch (error) {
+    console.error('Revoke invite code error:', error);
+    res.status(500).json({ message: 'Failed to revoke invite code' });
+  }
+};
+
+// Generate invite link
+const generateInviteLink = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const exam = await Exam.findById(id);
+    
+    if (!exam) {
+      return res.status(404).json({ message: 'Exam not found' });
+    }
+
+    if (exam.createdBy.toString() !== req.user.id.toString()) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const crypto = require('crypto');
+    const token = crypto.randomBytes(16).toString('hex');
+    
+    // Link format: /join/exam/:token
+    const link = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/join/exam/${token}`;
+    
+    exam.access.inviteLink = link;
+    exam.access.inviteLinkExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+    await exam.save();
+
+    res.json({ 
+      message: 'Invite link generated', 
+      inviteLink: link,
+      expiry: exam.access.inviteLinkExpiry
+    });
+  } catch (error) {
+    console.error('Generate invite link error:', error);
+    res.status(500).json({ message: 'Failed to generate invite link' });
+  }
+};
+
+// Revoke invite link
+const revokeInviteLink = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const exam = await Exam.findById(id);
+    
+    if (!exam) {
+      return res.status(404).json({ message: 'Exam not found' });
+    }
+
+    if (exam.createdBy.toString() !== req.user.id.toString()) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    exam.access.inviteLink = undefined;
+    exam.access.inviteLinkExpiry = undefined;
+    await exam.save();
+
+    res.json({ message: 'Invite link revoked' });
+  } catch (error) {
+    console.error('Revoke invite link error:', error);
+    res.status(500).json({ message: 'Failed to revoke invite link' });
+  }
+};
+
+
+// Add user to exam
+const addUserToExam = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId } = req.body;
+
+    const exam = await Exam.findById(id);
+    if (!exam) return res.status(404).json({ message: 'Exam not found' });
+    if (exam.createdBy.toString() !== req.user.id.toString()) return res.status(403).json({ message: 'Access denied' });
+
+    if (!exam.access.allowedUsers.includes(userId)) {
+      exam.access.allowedUsers.push(userId);
+      await exam.save();
+    }
+
+    res.json({ message: 'User added to exam', exam });
+  } catch (error) {
+    console.error('Add user to exam error:', error);
+    res.status(500).json({ message: 'Failed to add user to exam' });
+  }
+};
+
+// Remove user from exam
+const removeUserFromExam = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId } = req.body;
+
+    const exam = await Exam.findById(id);
+    if (!exam) return res.status(404).json({ message: 'Exam not found' });
+    if (exam.createdBy.toString() !== req.user.id.toString()) return res.status(403).json({ message: 'Access denied' });
+
+    exam.access.allowedUsers = exam.access.allowedUsers.filter(uid => uid.toString() !== userId);
+    await exam.save();
+
+    res.json({ message: 'User removed from exam', exam });
+  } catch (error) {
+    console.error('Remove user from exam error:', error);
+    res.status(500).json({ message: 'Failed to remove user from exam' });
+  }
+};
+
 module.exports = {
   createExam,
   getExams,
@@ -749,5 +910,11 @@ module.exports = {
   deleteExam,
   startExam,
   mergeExams,
-  createExamValidation
+  createExamValidation,
+  generateInviteCode,
+  revokeInviteCode,
+  generateInviteLink,
+  revokeInviteLink,
+  addUserToExam,
+  removeUserFromExam
 };

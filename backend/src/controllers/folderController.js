@@ -53,6 +53,29 @@ exports.getFolders = async (req, res) => {
   }
 };
 
+// Get single folder by ID
+exports.getFolder = async (req, res) => {
+  try {
+    const folder = await Folder.findById(req.params.id);
+    if (!folder) {
+      return res.status(404).json({ message: 'Folder not found' });
+    }
+
+    // Check access
+    const isOwner = folder.createdBy.toString() === req.user._id.toString();
+    const isPublic = folder.visibility === 'public';
+    const isInvited = folder.visibility === 'invited' && folder.allowedUsers.includes(req.user._id);
+
+    if (!isOwner && !isPublic && !isInvited) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    res.json(folder);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 // Update folder (rename/move/visibility)
 exports.updateFolder = async (req, res) => {
   try {

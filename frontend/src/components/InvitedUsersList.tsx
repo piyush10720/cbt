@@ -1,15 +1,15 @@
 import React from 'react'
 import { useQuery, useQueryClient } from 'react-query'
-import { userAPI, folderAPI } from '@/lib/api'
+import { userAPI } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Users, Mail, Calendar } from 'lucide-react'
-import toast from 'react-hot-toast'
 import LoadingSpinner from '@/components/LoadingSpinner'
 
 interface InvitedUsersListProps {
-  folderId: string
   userIds: string[]
+  onRemove: (userId: string, userName: string) => Promise<void>
+  isLoading?: boolean
 }
 
 interface UserDetails {
@@ -20,11 +20,11 @@ interface UserDetails {
   createdAt: string
 }
 
-const InvitedUsersList: React.FC<InvitedUsersListProps> = ({ folderId, userIds }) => {
+const InvitedUsersList: React.FC<InvitedUsersListProps> = ({ userIds, onRemove, isLoading: parentLoading }) => {
   const queryClient = useQueryClient()
 
   // Fetch user details
-  const { data: usersData, isLoading } = useQuery(
+  const { data: usersData, isLoading: queryLoading } = useQuery(
     ['invited-users', userIds],
     async () => {
       if (userIds.length === 0) return { users: [] }
@@ -38,17 +38,19 @@ const InvitedUsersList: React.FC<InvitedUsersListProps> = ({ folderId, userIds }
   )
 
   const handleRemoveUser = async (userId: string, userName: string) => {
-    if (window.confirm(`Remove ${userName} from this folder?`)) {
+    if (window.confirm(`Remove ${userName}?`)) {
       try {
-        await folderAPI.removeUserFromFolder(folderId, userId)
-        queryClient.invalidateQueries(['folders'])
+        await onRemove(userId, userName)
+        // Invalidation should be handled by parent or we can invalidate generic keys
         queryClient.invalidateQueries(['invited-users'])
-        toast.success(`${userName} removed from folder`)
       } catch (error) {
-        toast.error('Failed to remove user')
+        // Error handling should be done in onRemove or here
+        console.error(error)
       }
     }
   }
+
+  const isLoading = parentLoading || queryLoading
 
   const getInitials = (name: string) => {
     return name

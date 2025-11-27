@@ -1,4 +1,4 @@
-import React, { CSSProperties, useRef, useEffect, useCallback, Suspense } from 'react'
+import React, { CSSProperties, useRef, useEffect, useCallback, Suspense, memo, useMemo } from 'react'
 import { Question } from '@/lib/api'
 import CollapsibleQuestionCard from '@/components/CollapsibleQuestionCard'
 
@@ -42,9 +42,6 @@ const VirtualList = React.lazy<React.ComponentType<any>>(async () => {
     }
   }
 
-  console.log('Loaded react-window module:', module);
-  console.log('Keys:', Object.keys(module));
-
   // Try to find VariableSizeList in various locations
   const Component = 
     module.VariableSizeList || 
@@ -65,6 +62,98 @@ const VirtualList = React.lazy<React.ComponentType<any>>(async () => {
   
   return { default: Component };
 });
+
+interface RowData {
+  questions: Question[]
+  expandedQuestionIds: Set<string>
+  mostRecentExpandedId: string | null
+  validationErrors: Map<string, any[]>
+  onToggleExpand: (id: string) => void
+  onEdit: (id: string, updates: Partial<Question>) => void
+  onDuplicate: (index: number) => void
+  onDelete: (index: number) => void
+  onMoveUp: (index: number) => void
+  onMoveDown: (index: number) => void
+  onFocus: (question: Question) => void
+  measureHeight: (index: number, height: number) => void
+}
+
+interface RowProps {
+  index: number
+  style: CSSProperties
+  data: RowData
+}
+
+// Extract Row component to prevent re-creation on every render
+const EMPTY_ARRAY: any[] = []
+
+const Row = memo(({ index, style, data }: RowProps) => {
+  const { 
+    questions, 
+    expandedQuestionIds, 
+    mostRecentExpandedId, 
+    validationErrors, 
+    onToggleExpand, 
+    onEdit, 
+    onDuplicate, 
+    onDelete, 
+    onMoveUp, 
+    onMoveDown, 
+    onFocus, 
+    measureHeight 
+  } = data
+  
+  const question = questions[index]
+  // Guard against missing question (e.g. during deletion)
+  if (!question) return null
+
+  const isExpanded = expandedQuestionIds.has(question.id)
+  const rowRef = useRef<HTMLDivElement>(null)
+
+  // Measure height when content changes
+  useEffect(() => {
+    if (rowRef.current) {
+      const height = rowRef.current.getBoundingClientRect().height
+      measureHeight(index, height)
+    }
+  }, [
+    index, 
+    measureHeight, 
+    // Dependencies that affect height:
+    question.id,
+    isExpanded,
+    question.text,
+    question.options?.length,
+    question.diagram?.present,
+    validationErrors.get(question.id)?.length
+  ])
+
+  return (
+    <div style={style}>
+      <div 
+        ref={rowRef}
+        className="px-2 pb-2"
+      >
+        <CollapsibleQuestionCard
+          key={question.id}
+          question={question}
+          index={index}
+          totalQuestions={questions.length}
+          isExpanded={isExpanded}
+          isFocused={mostRecentExpandedId === question.id}
+          validationErrors={validationErrors.get(question.id) || EMPTY_ARRAY}
+          onToggleExpand={() => onToggleExpand(question.id)}
+          onEdit={onEdit}
+          onDuplicate={() => onDuplicate(index)}
+          onDelete={() => onDelete(index)}
+          onMoveUp={() => onMoveUp(index)}
+          onMoveDown={() => onMoveDown(index)}
+          onFocus={() => onFocus(question)}
+        />
+      </div>
+    </div>
+  )
+})
 
 interface VirtualizedQuestionListProps {
   questions: Question[]
@@ -99,13 +188,12 @@ const VirtualizedQuestionList: React.FC<VirtualizedQuestionListProps> = ({
   
   // Cache for measured heights
   const measuredHeights = useRef<Map<string, number>>(new Map())
-  
-  // Refs for measuring actual DOM heights
-  const rowRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
   // Estimate height based on content (fallback when not measured)
   const estimateHeight = useCallback((index: number): number => {
     const question = questions[index]
+    if (!question) return 100
+
     const isExpanded = expandedQuestionIds.has(question.id)
     
     if (!isExpanded) {
@@ -113,37 +201,39 @@ const VirtualizedQuestionList: React.FC<VirtualizedQuestionListProps> = ({
     }
     
     // Expanded card estimation
-    let height = 200 // Base
+    let h = 200 // Base
     
     // Options
     if (question.type === 'mcq_single' || question.type === 'mcq_multi' || question.type === 'true_false') {
-      height += (question.options?.length || 0) * 50
+      h += (question.options?.length || 0) * 50
     }
     
     // Diagram
     if (question.diagram?.present && question.diagram?.url) {
-      height += 250
+      h += 250
     }
     
     // Long text
     const textLength = question.text?.length || 0
     if (textLength > 200) {
-      height += Math.min(Math.floor(textLength / 100) * 30, 150)
+      h += Math.min(Math.floor(textLength / 100) * 30, 150)
     }
     
     // Validation errors
     const errors = validationErrors.get(question.id) || []
-    height += errors.length * 30
+    h += errors.length * 30
     
     // Padding
-    height += 100
+    h += 100
     
-    return Math.min(height, 800)
+    return Math.min(h, 800)
   }, [questions, expandedQuestionIds, validationErrors])
 
   // Get height for an item (measured or estimated)
   const getItemSize = useCallback((index: number): number => {
     const question = questions[index]
+    if (!question) return 100
+
     const cacheKey = `${question.id}-${expandedQuestionIds.has(question.id) ? 'expanded' : 'collapsed'}`
     
     // Return measured height if available
@@ -157,72 +247,62 @@ const VirtualizedQuestionList: React.FC<VirtualizedQuestionListProps> = ({
   }, [questions, expandedQuestionIds, estimateHeight])
 
   // Measure actual height after render
-  const measureHeight = useCallback((questionId: string, isExpanded: boolean) => {
-    const element = rowRefs.current.get(questionId)
-    if (element) {
-      const height = element.getBoundingClientRect().height
-      const cacheKey = `${questionId}-${isExpanded ? 'expanded' : 'collapsed'}`
+  const measureHeight = useCallback((index: number, height: number) => {
+    const question = questions[index]
+    if (!question) return
+
+    const isExpanded = expandedQuestionIds.has(question.id)
+    const cacheKey = `${question.id}-${isExpanded ? 'expanded' : 'collapsed'}`
+    
+    // Only update if height changed significantly (>5px difference)
+    const currentHeight = measuredHeights.current.get(cacheKey)
+    if (!currentHeight || Math.abs(currentHeight - height) > 5) {
+      measuredHeights.current.set(cacheKey, height)
       
-      // Only update if height changed significantly (>5px difference)
-      const currentHeight = measuredHeights.current.get(cacheKey)
-      if (!currentHeight || Math.abs(currentHeight - height) > 5) {
-        measuredHeights.current.set(cacheKey, height)
-        
-        // Reset list to use new measurements
-        if (listRef.current) {
-          listRef.current.resetAfterIndex(0)
-        }
+      // Reset list to use new measurements - ONLY after this index
+      if (listRef.current) {
+        listRef.current.resetAfterIndex(index)
       }
     }
-  }, [])
+  }, [questions, expandedQuestionIds])
 
   // Reset when expand/collapse changes
   useEffect(() => {
     if (listRef.current) {
+      // We need to reset everything if expansion state changes globally or significantly
+      // But ideally we should be more granular. For now, this is safe.
       listRef.current.resetAfterIndex(0)
     }
   }, [expandedQuestionIds])
 
-  // Row renderer with measurement
-  const Row = ({ index, style }: { index: number; style: CSSProperties }) => {
-    const question = questions[index]
-    const isExpanded = expandedQuestionIds.has(question.id)
-    
-    // Measure after render
-    useEffect(() => {
-      measureHeight(question.id, isExpanded)
-    }, [question.id, isExpanded])
-    
-    return (
-      <div style={style}>
-        <div 
-          ref={(el) => {
-            if (el) {
-              rowRefs.current.set(question.id, el)
-            }
-          }}
-          className="px-2 pb-2"
-        >
-          <CollapsibleQuestionCard
-            key={question.id}
-            question={question}
-            index={index}
-            totalQuestions={questions.length}
-            isExpanded={isExpanded}
-            isFocused={mostRecentExpandedId === question.id}
-            validationErrors={validationErrors.get(question.id) || []}
-            onToggleExpand={() => onToggleExpand(question.id)}
-            onEdit={onEdit}
-            onDuplicate={() => onDuplicate(index)}
-            onDelete={() => onDelete(index)}
-            onMoveUp={() => onMoveUp(index)}
-            onMoveDown={() => onMoveDown(index)}
-            onFocus={() => onFocus(question)}
-          />
-        </div>
-      </div>
-    )
-  }
+  // Memoize item data to prevent unnecessary re-renders of Row
+  const itemData = useMemo(() => ({
+    questions,
+    expandedQuestionIds,
+    mostRecentExpandedId,
+    validationErrors,
+    onToggleExpand,
+    onEdit,
+    onDuplicate,
+    onDelete,
+    onMoveUp,
+    onMoveDown,
+    onFocus,
+    measureHeight
+  }), [
+    questions, 
+    expandedQuestionIds, 
+    mostRecentExpandedId, 
+    validationErrors, 
+    onToggleExpand, 
+    onEdit, 
+    onDuplicate, 
+    onDelete, 
+    onMoveUp, 
+    onMoveDown, 
+    onFocus, 
+    measureHeight
+  ])
 
   return (
     <Suspense fallback={<div className="h-full flex items-center justify-center">Loading questions...</div>}>
@@ -233,6 +313,7 @@ const VirtualizedQuestionList: React.FC<VirtualizedQuestionListProps> = ({
         itemSize={getItemSize}
         width="100%"
         overscanCount={3}
+        itemData={itemData}
       >
         {Row}
       </VirtualList>

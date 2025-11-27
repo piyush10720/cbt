@@ -254,7 +254,14 @@ const getResult = async (req, res) => {
 
     let query = Result.findById(resultId)
       .populate('userId', 'name email')
-      .populate('examId', 'title description settings createdBy');
+      .populate({
+        path: 'examId',
+        select: 'title description settings createdBy questions',
+        populate: {
+          path: 'questions',
+          select: 'text type options correct marks tags diagram explanation'
+        }
+      });
 
     if (includeAnswers === 'true') {
       query = query.populate('answers.questionId');
@@ -385,7 +392,12 @@ const getUserResults = async (req, res) => {
     res.json({
       results: results.map(result => ({
         id: result._id,
-        exam: result.examId,
+        exam: result.examId ? {
+          id: result.examId._id,
+          title: result.examId.title,
+          description: result.examId.description,
+          createdBy: result.examId.createdBy
+        } : null,
         attemptNumber: result.attemptNumber,
         score: result.score,
         totalMarks: result.totalMarks,
@@ -589,20 +601,139 @@ const explainAnswer = async (req, res) => {
       return res.status(404).json({ message: 'Answer not found in result' });
     }
 
+    // Check cache first
+    const Explanation = require('../models/Explanation');
+    const userAnswer = answerRecord.userAnswer;
+    const correctAnswer = answerRecord.correctAnswer && answerRecord.correctAnswer.length > 0 
+      ? answerRecord.correctAnswer 
+      : question.correct;
+
+    let cachedExplanation = await Explanation.findByKey(questionId, userAnswer, correctAnswer);
+    
+    if (cachedExplanation) {
+      // Return cached explanation
+      console.log('Returning cached explanation for question:', questionId);
+      return res.json({
+        success: true,
+        explanation: cachedExplanation.explanation,
+        cached: true
+      });
+    }
+
+    // Generate new explanation using AI
+    console.log('Generating new explanation for question:', questionId);
     const explanation = await geminiExplanationService.generateExplanation({
       question,
       answerRecord,
       examTitle: result.examId.title
     });
 
+    // Save to cache
+    try {
+      await Explanation.createExplanation(questionId, userAnswer, correctAnswer, explanation);
+      console.log('Saved explanation to cache');
+    } catch (cacheError) {
+      // Log error but don't fail the request
+      console.error('Failed to cache explanation:', cacheError);
+    }
+
     res.json({
       success: true,
-      explanation
+      explanation,
+      cached: false
     });
   } catch (error) {
     console.error('Explain answer error:', error);
     res.status(500).json({
       message: 'Failed to generate explanation',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
+};
+
+// Manual grading
+const gradeResult = async (req, res) => {
+  try {
+    const { resultId } = req.params;
+    const { questionId, marksAwarded } = req.body;
+
+    if (!questionId || marksAwarded === undefined) {
+      return res.status(400).json({ message: 'questionId and marksAwarded are required' });
+    }
+
+    const result = await Result.findById(resultId).populate('examId');
+
+    if (!result) {
+      return res.status(404).json({ message: 'Result not found' });
+    }
+
+    // Check if user is exam creator
+    if (result.examId.createdBy.toString() !== req.user.id.toString() && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied. Only exam creator can grade.' });
+    }
+
+    // Find the answer
+    const answerIndex = result.answers.findIndex(a => a.questionId.toString() === questionId);
+    if (answerIndex === -1) {
+      return res.status(404).json({ message: 'Answer not found' });
+    }
+
+    // Get question to validate max marks
+    const question = await Question.findById(questionId);
+    if (!question) {
+      return res.status(404).json({ message: 'Question not found' });
+    }
+
+    if (marksAwarded > question.marks) {
+      return res.status(400).json({ 
+        message: `Marks awarded (${marksAwarded}) cannot exceed question max marks (${question.marks})` 
+      });
+    }
+
+    if (marksAwarded < 0) {
+      return res.status(400).json({ message: 'Marks cannot be negative' });
+    }
+
+    // Update answer
+    result.answers[answerIndex].marksAwarded = marksAwarded;
+    result.answers[answerIndex].isCorrect = marksAwarded > 0; // Simple heuristic, or maybe partial?
+    // If full marks, isCorrect = true. If 0, false. If partial, maybe true? 
+    // Let's stick to: if marks > 0 it's "correct" or at least "credited". 
+    // Actually, for descriptive, isCorrect might be subjective. 
+    // Let's set isCorrect based on percentage of marks obtained?
+    // For now, let's leave isCorrect as is or update it if it was null.
+    if (result.answers[answerIndex].isCorrect === null) {
+        result.answers[answerIndex].isCorrect = marksAwarded > 0;
+    }
+
+    // Recalculate total score
+    let totalScore = 0;
+    result.answers.forEach(a => {
+      totalScore += (a.marksAwarded || 0);
+    });
+    result.score = totalScore;
+    result.percentage = result.totalMarks > 0 ? Math.round((totalScore / result.totalMarks) * 100) : 0;
+
+    // Update grading status if needed
+    // Check if any other answers need grading?
+    // For now, just save.
+    
+    await result.save();
+
+    res.json({
+      message: 'Grade updated successfully',
+      result: {
+        id: result._id,
+        score: result.score,
+        percentage: result.percentage,
+        answer: result.answers[answerIndex]
+      }
+    });
+
+  } catch (error) {
+    console.error('Grade result error:', error);
+    res.status(500).json({
+      message: 'Failed to grade result',
       error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
     });
   }
@@ -617,5 +748,6 @@ module.exports = {
   getExamResults,
   addCheatingFlag,
   explainAnswer,
-  submitAnswerValidation
+  submitAnswerValidation,
+  gradeResult
 };

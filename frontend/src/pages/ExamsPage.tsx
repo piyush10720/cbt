@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import React, { useEffect, useMemo, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from 'react-query'
 import { examAPI, folderAPI, Folder, Exam } from '@/lib/api'
 import { useAuth } from '@/contexts/AuthContext'
@@ -13,20 +13,20 @@ import {
   Folder as FolderIcon, 
   FileText, 
   ChevronRight, 
-  ChevronDown, 
   Plus, 
   MoreVertical, 
   Trash2, 
   Edit,
   Eye,
-  ArrowLeft,
   CheckSquare,
   Square,
   Settings,
-  Lock,
-  Users,
-  Globe,
-  Copy
+  FolderInput,
+  LayoutGrid,
+  List as ListIcon,
+  FolderOpen,
+  Clock,
+  Users
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import {
@@ -43,17 +43,16 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator
 } from "@/components/ui/dropdown-menu"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-import InvitedUsersList from '@/components/InvitedUsersList'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import { motion, AnimatePresence } from 'framer-motion'
 
 const ExamsPage: React.FC = () => {
   const navigate = useNavigate()
@@ -66,24 +65,47 @@ const ExamsPage: React.FC = () => {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
   const [selectedExamIds, setSelectedExamIds] = useState<Set<string>>(new Set())
   const [selectedExamsDetails, setSelectedExamsDetails] = useState<Exam[]>([])
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   
   // Modals
   const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
   const [newFolderVisibility, setNewFolderVisibility] = useState<'owner' | 'invited' | 'public'>('owner')
   const [newFolderDescription, setNewFolderDescription] = useState('')
-  const [isFolderSettingsOpen, setIsFolderSettingsOpen] = useState(false)
-  const [selectedFolder, setSelectedFolder] = useState<Folder | null>(null)
-  const [localFolderSettings, setLocalFolderSettings] = useState<Partial<Folder>>({})
+  
   const [isMergeModalOpen, setIsMergeModalOpen] = useState(false)
   const [mergeConfig, setMergeConfig] = useState({
     title: '',
     description: '',
-    duration: 60,
-    randomizeQuestions: false
+    settings: {
+      duration: 60,
+      negativeMarking: false,
+      randomizeQuestions: false,
+      randomizeOptions: false,
+      showResultImmediately: true,
+      allowReview: true,
+      preventTabSwitch: true,
+      webcamMonitoring: false,
+      maxAttempts: 1,
+      allowCalculator: false
+    },
+    schedule: {
+      startDate: new Date().toISOString().slice(0, 16),
+      endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
+      timezone: 'UTC'
+    },
+    access: {
+      type: 'private',
+      requireApproval: false
+    }
   })
   const [folderToDelete, setFolderToDelete] = useState<Folder | null>(null)
   const [examToDelete, setExamToDelete] = useState<Exam | null>(null)
+  
+  // Move Modal State
+  const [isMoveModalOpen, setIsMoveModalOpen] = useState(false)
+  const [itemsToMove, setItemsToMove] = useState<{ id: string, type: 'exam' | 'folder' }[]>([])
+  const [targetFolderId, setTargetFolderId] = useState<string | null>(null)
 
   // Fetch Folders (All for Tree, Subfolders for View)
   const { data: allFoldersData } = useQuery(
@@ -100,7 +122,7 @@ const ExamsPage: React.FC = () => {
     ['exams', currentFolderId, searchTerm],
     () => examAPI.getExams({
       search: searchTerm || undefined,
-      folderId: currentFolderId || 'root'
+      folderId: currentFolderId || 'all'
     }).then(res => res.data),
     { keepPreviousData: true }
   )
@@ -110,20 +132,13 @@ const ExamsPage: React.FC = () => {
   const currentSubfolders = allFolders.filter(f => f.parent === currentFolderId)
   const exams = examsData?.exams || []
   
-  // Initialize local folder settings when modal opens
+  // Handle query params
+  const [searchParams] = useSearchParams()
   useEffect(() => {
-    if (isFolderSettingsOpen && selectedFolder) {
-      setLocalFolderSettings({
-        visibility: selectedFolder.visibility,
-        inviteCode: selectedFolder.inviteCode,
-        inviteLink: selectedFolder.inviteLink,
-        description: selectedFolder.description
-      })
+    if (searchParams.get('createFolder') === 'true') {
+      setIsCreateFolderOpen(true)
     }
-  }, [isFolderSettingsOpen, selectedFolder])
-
-  // Debounce timer for description updates
-  const descriptionTimerRef = useRef<any>(null)
+  }, [searchParams])
 
   // Build Folder Tree
   const folderTree = useMemo(() => {
@@ -200,10 +215,11 @@ const ExamsPage: React.FC = () => {
         title: mergeConfig.title,
         description: mergeConfig.description,
         settings: {
-          duration: mergeConfig.duration,
-          randomizeQuestions: mergeConfig.randomizeQuestions,
+          ...mergeConfig.settings,
           totalMarks: 0 // Backend calculates this
-        }
+        },
+        schedule: mergeConfig.schedule,
+        access: mergeConfig.access
       })
     },
     {
@@ -220,7 +236,69 @@ const ExamsPage: React.FC = () => {
     }
   )
 
+  const publishExamMutation = useMutation(
+    async (id: string) => {
+      await examAPI.publishExam(id)
+    },
+    {
+      onSuccess: () => {
+        toast.success('Exam published')
+        queryClient.invalidateQueries(['exams'])
+      },
+      onError: (error: any) => {
+        toast.error(error.response?.data?.message || 'Failed to publish exam')
+      }
+    }
+  )
 
+  const unpublishExamMutation = useMutation(
+    async (id: string) => {
+      await examAPI.unpublishExam(id)
+    },
+    {
+      onSuccess: () => {
+        toast.success('Exam unpublished')
+        queryClient.invalidateQueries(['exams'])
+      },
+      onError: (error: any) => {
+        toast.error(error.response?.data?.message || 'Failed to unpublish exam')
+      }
+    }
+  )
+
+  const moveItemsMutation = useMutation(
+    async () => {
+      if (!targetFolderId) return
+
+      const promises = itemsToMove.map(async (item) => {
+        if (item.type === 'exam') {
+          await folderAPI.addExamToFolder(item.id, targetFolderId)
+          if (currentFolderId) {
+             await folderAPI.removeExamFromFolder(item.id, currentFolderId)
+          }
+        } else {
+          await folderAPI.updateFolder(item.id, { parent: targetFolderId === 'root' ? null : targetFolderId })
+        }
+      })
+
+      await Promise.all(promises)
+    },
+    {
+      onSuccess: () => {
+        toast.success(`Successfully moved ${itemsToMove.length} item${itemsToMove.length !== 1 ? 's' : ''}`)
+        setIsMoveModalOpen(false)
+        setItemsToMove([])
+        setTargetFolderId(null)
+        setSelectedExamIds(new Set())
+        setSelectedExamsDetails([])
+        queryClient.invalidateQueries(['folders'])
+        queryClient.invalidateQueries(['exams'])
+      },
+      onError: (error: any) => {
+        toast.error(error.response?.data?.message || 'Failed to move items')
+      }
+    }
+  )
 
   // Handlers
   const toggleFolderExpand = (folderId: string) => {
@@ -232,9 +310,7 @@ const ExamsPage: React.FC = () => {
     }
     setExpandedFolders(newExpanded)
   }
-
   const toggleExamSelection = (exam: Exam) => {
-    // Check if exam is mergeable (owner or public)
     const canMerge = exam.access.type === 'public' || (user && exam.createdBy.email === user.email)
     
     if (!canMerge && !selectedExamIds.has(exam.id)) {
@@ -258,14 +334,15 @@ const ExamsPage: React.FC = () => {
     setSelectedExamsDetails(newDetails)
   }
 
-  // Calculate merged totals
-  const mergedTotals = useMemo(() => {
-    return selectedExamsDetails.reduce((acc, exam) => ({
-      marks: acc.marks + (exam.settings.totalMarks || 0),
-      duration: acc.duration + (exam.settings.duration || 0),
-      questions: acc.questions + (exam.questionCount || 0)
-    }), { marks: 0, duration: 0, questions: 0 })
-  }, [selectedExamsDetails])
+  const getBreadcrumbs = (folderId: string | null) => {
+    const breadcrumbs = []
+    let current = allFolders.find(f => f._id === folderId)
+    while (current) {
+      breadcrumbs.unshift(current)
+      current = allFolders.find(f => f._id === current?.parent)
+    }
+    return breadcrumbs
+  }
 
   // Folder Tree Component
   const FolderTreeItem = ({ folder, level = 0 }: { folder: Folder, level?: number }) => {
@@ -274,41 +351,38 @@ const ExamsPage: React.FC = () => {
     const isSelected = currentFolderId === folder._id
 
     return (
-      <div>
+      <div className="select-none">
         <div 
-          className={`flex items-center py-1 px-2 cursor-pointer hover:bg-gray-100 rounded-md ${isSelected ? 'bg-blue-50 text-blue-600' : 'text-gray-700'}`}
-          style={{ paddingLeft: `${level * 12 + 8}px` }}
+          className={`flex items-center py-1.5 px-2 cursor-pointer rounded-md transition-colors ${
+            isSelected 
+              ? 'bg-primary/10 text-primary font-medium' 
+              : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+          }`}
+          style={{ paddingLeft: `${level * 16 + 8}px` }}
           onClick={() => setCurrentFolderId(folder._id)}
-          onContextMenu={(e) => {
-            e.preventDefault()
-            // Custom context menu logic could go here
-          }}
         >
           <div 
-            className="p-1 mr-1 hover:bg-gray-200 rounded"
+            className="p-0.5 mr-1 hover:bg-gray-200 rounded transition-colors"
             onClick={(e) => {
               e.stopPropagation()
               toggleFolderExpand(folder._id)
             }}
           >
             {hasChildren ? (
-              isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />
-            ) : <span className="w-3 h-3 block" />}
+              <ChevronRight className={`h-3.5 w-3.5 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+            ) : <span className="w-3.5 h-3.5 block" />}
           </div>
-          <FolderIcon className="h-4 w-4 mr-2" />
-          <span className="text-sm truncate">{folder.name}</span>
+          <FolderIcon className={`h-4 w-4 mr-2 ${isSelected ? 'fill-primary/20' : ''}`} />
+          <span className="text-sm truncate flex-1">{folder.name}</span>
           
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-6 w-6 p-0 ml-auto">
+              <Button variant="ghost" size="sm" className="h-6 w-6 p-0 ml-auto opacity-0 group-hover:opacity-100 focus:opacity-100">
                 <MoreVertical className="h-3 w-3" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => {
-                setSelectedFolder(folder)
-                setIsFolderSettingsOpen(true)
-              }}>
+              <DropdownMenuItem onClick={() => navigate(`/folders/${folder._id}/settings`)}>
                 <Settings className="mr-2 h-4 w-4" />
                 Settings
               </DropdownMenuItem>
@@ -319,671 +393,504 @@ const ExamsPage: React.FC = () => {
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-        {isExpanded && hasChildren && (
-          <div>
-            {folderTree[folder._id].map(child => (
-              <FolderTreeItem key={child._id} folder={child} level={level + 1} />
-            ))}
-          </div>
-        )}
+        <AnimatePresence>
+          {isExpanded && hasChildren && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden"
+            >
+              {folderTree[folder._id].map(child => (
+                <FolderTreeItem key={child._id} folder={child} level={level + 1} />
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     )
   }
 
   return (
-    <div className="flex h-[calc(100vh-64px)]">
-      {/* Sidebar */}
-      <div className="w-64 border-r bg-gray-50 flex flex-col">
-        <div className="p-4 border-b bg-white">
-          <Button onClick={() => setIsCreateFolderOpen(true)} className="w-full justify-start" variant="outline">
-            <Plus className="mr-2 h-4 w-4" />
-            New Folder
-          </Button>
-        </div>
-        <div className="flex-1 overflow-y-auto p-2">
-          <div 
-            className={`flex items-center py-1 px-2 cursor-pointer hover:bg-gray-100 rounded-md mb-1 ${!currentFolderId ? 'bg-blue-50 text-blue-600' : 'text-gray-700'}`}
-            onClick={() => setCurrentFolderId(null)}
-          >
-            <div className="w-5 mr-1" />
-            <FolderIcon className="h-4 w-4 mr-2" />
-            <span className="text-sm font-medium">All Exams</span>
+    <TooltipProvider>
+      <div className="flex h-[calc(100vh-64px)] bg-background">
+        {/* Sidebar */}
+        <div className="w-72 border-r bg-gray-50/50 flex flex-col">
+          <div className="p-4 border-b bg-background">
+            <Button onClick={() => setIsCreateFolderOpen(true)} className="w-full justify-start shadow-sm" variant="outline">
+              <Plus className="mr-2 h-4 w-4" />
+              New Folder
+            </Button>
           </div>
-          {folderTree['root']?.map(folder => (
-            <FolderTreeItem key={folder._id} folder={folder} />
-          ))}
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className="p-6 border-b bg-white">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 flex items-center">
-                {currentFolderId ? (
-                  <>
-                    <Button variant="ghost" size="sm" onClick={() => setCurrentFolderId(null)}>
-                      <ArrowLeft className="mr-2 h-4 w-4" />
-                      Back
-                    </Button>
-                    <span className="mx-2">/</span>
-                    {allFolders.find(f => f._id === currentFolderId)?.name}
-                  </>
-                ) : 'All Exams'}
-              </h1>
+          <div className="flex-1 overflow-y-auto p-3 space-y-1">
+            <div 
+              className={`flex items-center py-2 px-3 cursor-pointer rounded-md transition-colors ${
+                !currentFolderId 
+                  ? 'bg-primary/10 text-primary font-medium' 
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+              }`}
+              onClick={() => setCurrentFolderId(null)}
+            >
+              <div className="w-5 mr-1" />
+              <LayoutGrid className="h-4 w-4 mr-2" />
+              <span className="text-sm">All Exams</span>
             </div>
-            <div className="flex items-center gap-2">
-              {selectedExamIds.size > 1 && (
-                <Button onClick={() => setIsMergeModalOpen(true)} variant="secondary">
-                  Merge ({selectedExamIds.size})
-                </Button>
-              )}
-              <Button onClick={() => navigate('/folders/join')} variant="outline">
-                <Users className="mr-2 h-4 w-4" />
-                Join Folder
-              </Button>
-              {isTeacher && (
-                <Button onClick={() => navigate('/exams/create')}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Create Exam
-                </Button>
-              )}
-            </div>
-          </div>
-
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <Input
-              placeholder="Search exams..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 max-w-md"
-            />
+            {folderTree['root']?.map(folder => (
+              <FolderTreeItem key={folder._id} folder={folder} />
+            ))}
           </div>
         </div>
 
-        {/* Content Area */}
-        <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
-          {/* Subfolders Grid */}
-          {currentSubfolders.length > 0 && (
-            <div className="mb-8">
-              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">Folders</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {currentSubfolders.map(folder => (
-                  <Card 
-                    key={folder._id} 
-                    className="cursor-pointer hover:shadow-md transition-shadow"
-                    onClick={() => setCurrentFolderId(folder._id)}
+        {/* Main Content */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Header */}
+          <div className="p-6 border-b bg-background/95 backdrop-blur z-10">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+              <div>
+                <h1 className="text-2xl font-bold text-foreground flex items-center flex-wrap gap-2">
+                  <span 
+                    className={`cursor-pointer hover:text-primary transition-colors ${!currentFolderId ? 'text-foreground' : 'text-muted-foreground'}`}
+                    onClick={() => setCurrentFolderId(null)}
                   >
-                    <CardContent className="p-4 flex items-center justify-between">
-                      <div className="flex items-center overflow-hidden">
-                        <FolderIcon className={`h-8 w-8 mr-3 flex-shrink-0 ${
-                          folder.visibility === 'public' ? 'text-green-500' :
-                          folder.visibility === 'invited' ? 'text-blue-500' : 'text-yellow-500'
-                        }`} />
-                        <div className="truncate">
-                          <p className="font-medium text-gray-900 truncate">{folder.name}</p>
-                          <p className="text-xs text-gray-500">
-                            {folder.visibility === 'public' ? 'Public' :
-                             folder.visibility === 'invited' ? 'Invited Only' : 'Private'}
-                          </p>
-                        </div>
-                      </div>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={(e) => {
-                            e.stopPropagation()
-                            setSelectedFolder(folder)
-                            setIsFolderSettingsOpen(true)
-                          }}>
-                            <Settings className="mr-2 h-4 w-4" />
-                            Settings
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            className="text-red-600" 
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setFolderToDelete(folder)
-                            }}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </CardContent>
-                  </Card>
-                ))}
+                    All Exams
+                  </span>
+                  {getBreadcrumbs(currentFolderId).map((folder, index, array) => (
+                    <React.Fragment key={folder._id}>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      <span 
+                        className={`cursor-pointer hover:text-primary transition-colors ${index === array.length - 1 ? 'text-foreground' : 'text-muted-foreground'}`}
+                        onClick={() => setCurrentFolderId(folder._id)}
+                      >
+                        {folder.name}
+                      </span>
+                    </React.Fragment>
+                  ))}
+                </h1>
+              </div>
+              <div className="flex items-center gap-2">
+                {selectedExamIds.size > 0 && (
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="flex gap-2"
+                  >
+                    <Button 
+                        onClick={() => {
+                            setItemsToMove(Array.from(selectedExamIds).map(id => ({ id, type: 'exam' })))
+                            setIsMoveModalOpen(true)
+                        }} 
+                        variant="outline"
+                        size="sm"
+                    >
+                        <FolderInput className="mr-2 h-4 w-4" />
+                        Move ({selectedExamIds.size})
+                    </Button>
+                    {selectedExamIds.size > 1 && (
+                        <Button onClick={() => setIsMergeModalOpen(true)} variant="secondary" size="sm">
+                            Merge ({selectedExamIds.size})
+                        </Button>
+                    )}
+                  </motion.div>
+                )}
+                <Button onClick={() => navigate('/folders/join')} variant="outline" size="sm">
+                  <Users className="mr-2 h-4 w-4" />
+                  Join Folder
+                </Button>
+                {isTeacher && (
+                  <Button onClick={() => navigate('/exams/create')} size="sm" className="shadow-sm">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Create Exam
+                  </Button>
+                )}
               </div>
             </div>
-          )}
 
-          {/* Exams Grid */}
-          <div>
-            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">Exams</h2>
-            {isExamsLoading ? (
-              <div className="flex justify-center py-12">
-                <LoadingSpinner />
+            <div className="flex items-center gap-4">
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search exams..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9 bg-muted/50 border-muted focus:bg-background transition-colors"
+                />
               </div>
-            ) : exams.length === 0 ? (
-              <div className="text-center py-12 bg-white rounded-lg border border-dashed">
-                <FileText className="h-12 w-12 mx-auto text-gray-400 mb-3" />
-                <h3 className="text-lg font-medium text-gray-900">No exams found</h3>
-                <p className="text-gray-500 mt-1">Create a new exam to get started</p>
+              <div className="flex items-center border rounded-md p-1 bg-muted/50">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={`h-7 px-2 ${viewMode === 'grid' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}
+                  onClick={() => setViewMode('grid')}
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={`h-7 px-2 ${viewMode === 'list' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}
+                  onClick={() => setViewMode('list')}
+                >
+                  <ListIcon className="h-4 w-4" />
+                </Button>
               </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {exams.map(exam => (
-                  <Card key={exam.id} className="hover:shadow-md transition-shadow relative group">
-                    <div className="absolute top-3 left-3 z-10">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="p-0 h-6 w-6"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          toggleExamSelection(exam)
-                        }}
+            </div>
+          </div>
+
+          {/* Content Area */}
+          <div className="flex-1 overflow-y-auto p-6 bg-muted/10">
+            {/* Subfolders Grid */}
+            {currentSubfolders.length > 0 && (
+              <div className="mb-8">
+                <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4 flex items-center">
+                  <FolderOpen className="w-4 h-4 mr-2" /> Folders
+                </h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {currentSubfolders.map(folder => (
+                    <motion.div
+                      key={folder._id}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                    >
+                      <Card 
+                        className="cursor-pointer hover:shadow-md transition-all border-l-4 border-l-transparent hover:border-l-primary group"
+                        onClick={() => setCurrentFolderId(folder._id)}
                       >
-                        {selectedExamIds.has(exam.id) ? (
-                          <CheckSquare className="h-5 w-5 text-blue-600" />
-                        ) : (
-                          <Square className="h-5 w-5 text-gray-400" />
-                        )}
-                      </Button>
-                    </div>
-                    <CardHeader className="pb-2 pt-10">
-                      <div className="flex justify-between items-start">
-                        <CardTitle className="text-lg font-semibold line-clamp-1" title={exam.title}>
-                          {exam.title}
-                        </CardTitle>
-                        <Badge variant={
-                          exam.status === 'published' ? 'default' : 
-                          exam.status === 'draft' ? 'secondary' : 'outline'
-                        }>
-                          {exam.status}
-                        </Badge>
-                      </div>
-                      <CardDescription className="line-clamp-2 h-10">
-                        {exam.description || 'No description provided'}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex justify-between text-sm text-gray-500 mb-4">
-                        <span>{exam.questionCount} Questions</span>
-                        <span>{exam.settings.duration} mins</span>
-                      </div>
-                      <div className="flex items-center justify-between pt-4 border-t">
-                        <div className="text-xs text-gray-400">
-                          {formatRelativeTime(exam.createdAt)}
-                        </div>
-                        <div className="flex gap-2">
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => navigate(`/exams/${exam.id}`)}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          {isTeacher && (
-                            <>
-                              <Button 
-                                variant="ghost" 
-                                size="sm"
-                                onClick={() => navigate(`/exams/${exam.id}/edit`)}
-                              >
-                                <Edit className="h-4 w-4" />
+                        <CardContent className="p-4 flex items-center justify-between">
+                          <div className="flex items-center overflow-hidden">
+                            <div className={`p-2 rounded-lg mr-3 ${
+                              folder.visibility === 'public' ? 'bg-green-100 text-green-600' :
+                              folder.visibility === 'invited' ? 'bg-blue-100 text-blue-600' : 'bg-amber-100 text-amber-600'
+                            }`}>
+                              <FolderIcon className="h-5 w-5" />
+                            </div>
+                            <div className="truncate">
+                              <p className="font-medium text-foreground truncate group-hover:text-primary transition-colors">{folder.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {folder.visibility === 'public' ? 'Public' :
+                                 folder.visibility === 'invited' ? 'Invited Only' : 'Private'}
+                              </p>
+                            </div>
+                          </div>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <MoreVertical className="h-4 w-4" />
                               </Button>
-                              <Button 
-                                variant="ghost" 
-                                size="sm"
-                                className="text-red-600 hover:text-red-700"
-                                onClick={() => setExamToDelete(exam)}
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={(e) => {
+                                e.stopPropagation()
+                                navigate(`/folders/${folder._id}/settings`)
+                              }}>
+                                <Settings className="mr-2 h-4 w-4" />
+                                Settings
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={(e) => {
+                                  e.stopPropagation()
+                                  setItemsToMove([{ id: folder._id, type: 'folder' }])
+                                  setIsMoveModalOpen(true)
+                              }}>
+                                  <FolderInput className="mr-2 h-4 w-4" />
+                                  Move
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem 
+                                className="text-red-600 focus:text-red-600 focus:bg-red-50" 
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setFolderToDelete(folder)
+                                }}
                               >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  ))}
+                </div>
               </div>
             )}
-          </div>
-        </div>
-      </div>
 
-      {/* Create Folder Modal */}
-      <Dialog open={isCreateFolderOpen} onOpenChange={setIsCreateFolderOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create New Folder</DialogTitle>
-            <DialogDescription>
-              Create a folder to organize your exams.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Folder Name</Label>
-              <Input
-                value={newFolderName}
-                onChange={(e) => setNewFolderName(e.target.value)}
-                placeholder="e.g., Mathematics 101"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Visibility</Label>
-              <Select 
-                value={newFolderVisibility} 
-                onValueChange={(value: any) => setNewFolderVisibility(value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select visibility" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="owner">
-                    <div className="flex items-center">
-                      <Lock className="mr-2 h-4 w-4" />
-                      <span>Private (Owner Only)</span>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="invited">
-                    <div className="flex items-center">
-                      <Users className="mr-2 h-4 w-4" />
-                      <span>Invited Users Only</span>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="public">
-                    <div className="flex items-center">
-                      <Globe className="mr-2 h-4 w-4" />
-                      <span>Public (Everyone)</span>
-                    </div>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Description (Optional)</Label>
-              <Textarea
-                value={newFolderDescription}
-                onChange={(e) => setNewFolderDescription(e.target.value)}
-                placeholder="Brief description of folder contents..."
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsCreateFolderOpen(false)}>Cancel</Button>
-            <Button 
-              onClick={() => createFolderMutation.mutate(newFolderName)}
-              disabled={!newFolderName.trim() || createFolderMutation.isLoading}
-            >
-              {createFolderMutation.isLoading ? 'Creating...' : 'Create Folder'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Folder Settings Modal */}
-      <Dialog open={isFolderSettingsOpen} onOpenChange={setIsFolderSettingsOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Folder Settings: {selectedFolder?.name}</DialogTitle>
-            <DialogDescription>
-              Manage visibility, access, and invite settings.
-            </DialogDescription>
-          </DialogHeader>
-          
-          {selectedFolder && (
-            <div className="space-y-6 py-4">
-              {/* Visibility Settings */}
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Visibility</Label>
-                <Select 
-                  value={localFolderSettings.visibility || selectedFolder.visibility} 
-                  onValueChange={(value: any) => {
-                    // Optimistic update
-                    setLocalFolderSettings(prev => ({ ...prev, visibility: value }))
-                    
-                    // API Call
-                    folderAPI.updateFolder(selectedFolder._id, { visibility: value })
-                      .then(() => {
-                        queryClient.invalidateQueries(['folders'])
-                        toast.success('Visibility updated')
-                      })
-                      .catch(() => {
-                        // Revert on error
-                        setLocalFolderSettings(prev => ({ ...prev, visibility: selectedFolder.visibility }))
-                        toast.error('Failed to update visibility')
-                      })
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="owner">
-                      <div className="flex items-center">
-                        <Lock className="mr-2 h-4 w-4" />
-                        <span className="font-medium">Private</span>
-                        <span className="ml-2 text-gray-500 text-xs">- Only you can access</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="invited">
-                      <div className="flex items-center">
-                        <Users className="mr-2 h-4 w-4" />
-                        <span className="font-medium">Invited Users</span>
-                        <span className="ml-2 text-gray-500 text-xs">- Only invited users can access</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="public">
-                      <div className="flex items-center">
-                        <Globe className="mr-2 h-4 w-4" />
-                        <span className="font-medium">Public</span>
-                        <span className="ml-2 text-gray-500 text-xs">- Anyone can access</span>
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Invite System - Only show if visibility is 'invited' */}
-              {(localFolderSettings.visibility || selectedFolder.visibility) === 'invited' && (
-                <>
-                  <div className="p-4 bg-blue-50 rounded-lg border border-blue-100 space-y-4">
-                    <h3 className="font-medium text-blue-900 flex items-center">
-                      <Users className="h-4 w-4 mr-2" />
-                      Invite Users
-                    </h3>
-                    
-                    {/* Invite Code */}
-                    <div>
-                      <Label className="text-xs font-medium text-blue-700 uppercase tracking-wider mb-1 block">Invite Code</Label>
-                      <div className="flex gap-2">
-                        {selectedFolder.inviteCode ? (
-                          <>
-                            <div className="flex-1 bg-white border rounded px-3 py-2 font-mono text-lg tracking-widest text-center select-all">
-                              {selectedFolder.inviteCode}
-                            </div>
-                            <Button 
-                              variant="outline"
-                              onClick={() => {
-                                navigator.clipboard.writeText(selectedFolder.inviteCode!)
-                                toast.success('Code copied!')
-                              }}
-                            >
-                              <Copy className="h-4 w-4" />
-                            </Button>
-                            <Button 
-                              variant="destructive"
-                              onClick={() => {
-                                folderAPI.revokeInvite(selectedFolder._id, 'code').then(() => {
-                                  queryClient.invalidateQueries(['folders'])
-                                  toast.success('Code revoked')
-                                })
-                              }}
-                            >
-                              Revoke
-                            </Button>
-                          </>
-                        ) : (
-                          <Button 
-                            className="w-full" 
-                            variant="outline"
-                            onClick={() => {
-                              folderAPI.generateInviteCode(selectedFolder._id).then(() => {
-                                queryClient.invalidateQueries(['folders'])
-                                toast.success('Code generated')
-                              })
-                            }}
-                          >
-                            Generate Invite Code
-                          </Button>
-                        )}
-                      </div>
-                      <p className="text-xs text-blue-600 mt-1">
-                        Users can join using this code on the Join Folder page.
-                      </p>
-                    </div>
-
-                    {/* Invite Link */}
-                    <div>
-                      <Label className="text-xs font-medium text-blue-700 uppercase tracking-wider mb-1 block">Invite Link</Label>
-                      {selectedFolder.inviteLink ? (
-                        <>
-                          <div className="flex gap-2">
-                            <Input 
-                              value={`${window.location.origin}/folders/join/${selectedFolder.inviteLink}`} 
-                              readOnly 
-                              className="flex-1 bg-white"
-                            />
-                            <Button 
-                              variant="outline"
+            {/* Exams Grid */}
+            <div>
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4 flex items-center">
+                <FileText className="w-4 h-4 mr-2" /> Exams
+              </h2>
+              {isExamsLoading ? (
+                <div className="flex justify-center py-12">
+                  <LoadingSpinner />
+                </div>
+              ) : exams.length === 0 ? (
+                <div className="text-center py-16 bg-background rounded-xl border border-dashed">
+                  <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+                    <FileText className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                  <h3 className="text-lg font-medium text-foreground">No exams found</h3>
+                  <p className="text-muted-foreground mt-1">Create a new exam to get started</p>
+                  {isTeacher && (
+                    <Button variant="outline" className="mt-4" onClick={() => navigate('/exams/create')}>
+                      Create Exam
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <div className={viewMode === 'grid' ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" : "space-y-3"}>
+                  <AnimatePresence>
+                    {exams.map(exam => (
+                      <motion.div
+                        key={exam.id}
+                        layout
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        <Card 
+                          className={`cursor-pointer hover:shadow-lg transition-all group relative overflow-hidden ${
+                            viewMode === 'list' ? 'flex flex-row items-center' : 'flex flex-col'
+                          } ${selectedExamIds.has(exam.id) ? 'ring-2 ring-primary bg-primary/5' : ''}`}
+                          onClick={() => navigate(`/exams/${exam.id}`)}
+                        >
+                          {/* Selection Checkbox Overlay */}
+                          <div className={`absolute top-3 left-3 z-10 ${viewMode === 'list' ? 'relative top-0 left-0 mr-4' : ''}`}>
+                            <Button
+                              variant="ghost"
                               size="sm"
-                              onClick={() => {
-                                navigator.clipboard.writeText(
-                                  `${window.location.origin}/folders/join/${selectedFolder.inviteLink}`
-                                )
-                                toast.success('Link copied!')
+                              className={`p-0 h-6 w-6 rounded-md ${selectedExamIds.has(exam.id) ? 'text-primary' : 'text-muted-foreground opacity-0 group-hover:opacity-100'}`}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                toggleExamSelection(exam)
                               }}
                             >
-                              <Copy className="h-4 w-4" />
-                            </Button>
-                            <Button 
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => {
-                                folderAPI.revokeInvite(selectedFolder._id, 'link').then(() => {
-                                  queryClient.invalidateQueries(['folders'])
-                                  toast.success('Link revoked')
-                                })
-                              }}
-                            >
-                              Revoke
+                              {selectedExamIds.has(exam.id) ? (
+                                <CheckSquare className="h-5 w-5" />
+                              ) : (
+                                <Square className="h-5 w-5" />
+                              )}
                             </Button>
                           </div>
-                          {selectedFolder.inviteLinkExpiry && (
-                            <p className="text-xs text-gray-500 mt-1">
-                              Expires: {new Date(selectedFolder.inviteLinkExpiry).toLocaleDateString()}
-                            </p>
-                          )}
-                        </>
-                      ) : (
-                        <div className="flex gap-2 items-center">
-                          <Select onValueChange={(val) => {
-                            const days = val === 'never' ? 'never' : parseInt(val)
-                            folderAPI.generateInviteLink(selectedFolder._id, days).then(() => {
-                              queryClient.invalidateQueries(['folders'])
-                              toast.success('Link generated')
-                            })
-                          }}>
-                            <SelectTrigger className="w-[180px] bg-white">
-                              <SelectValue placeholder="Generate Link..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="1">Expires in 1 day</SelectItem>
-                              <SelectItem value="7">Expires in 7 days</SelectItem>
-                              <SelectItem value="30">Expires in 30 days</SelectItem>
-                              <SelectItem value="never">Never expires</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </>
-              )}
 
-              {/* Invited Users List - Show for invited folders */}
-              {(localFolderSettings.visibility || selectedFolder.visibility) === 'invited' && selectedFolder && (
-                <InvitedUsersList folderId={selectedFolder._id} userIds={selectedFolder.allowedUsers || []} />
-              )}
-
-              {/* Description */}
-              <div>
-                <Label className="text-sm font-medium">Description</Label>
-                <Textarea 
-                  value={localFolderSettings.description !== undefined ? localFolderSettings.description : (selectedFolder.description || '')}
-                  onChange={(e) => {
-                    const val = e.target.value
-                    setLocalFolderSettings(prev => ({ ...prev, description: val }))
-                    
-                    // Debounce API call
-                    if (descriptionTimerRef.current) clearTimeout(descriptionTimerRef.current)
-                    descriptionTimerRef.current = setTimeout(() => {
-                      folderAPI.updateFolder(selectedFolder._id, { description: val })
-                        .then(() => queryClient.invalidateQueries(['folders']))
-                    }, 500)
-                  }}
-                  placeholder="Add a description..."
-                  className="mt-1"
-                />
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Merge Exams Modal */}
-      <Dialog open={isMergeModalOpen} onOpenChange={setIsMergeModalOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Merge Exams</DialogTitle>
-            <DialogDescription>
-              Combine {selectedExamIds.size} selected exams into a new single exam.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="grid grid-cols-2 gap-6 py-4">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>New Exam Title</Label>
-                <Input
-                  value={mergeConfig.title}
-                  onChange={(e) => setMergeConfig(prev => ({ ...prev, title: e.target.value }))}
-                  placeholder="e.g., Combined Final Exam"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Description</Label>
-                <Textarea
-                  value={mergeConfig.description}
-                  onChange={(e) => setMergeConfig(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder="Description for the merged exam..."
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Duration (minutes)</Label>
-                <Input
-                  type="number"
-                  value={mergeConfig.duration}
-                  onChange={(e) => setMergeConfig(prev => ({ ...prev, duration: parseInt(e.target.value) || 0 }))}
-                />
-                <p className="text-xs text-gray-500">
-                  Sum of selected exams: {mergedTotals.duration} mins
-                </p>
-              </div>
-              <div className="flex items-center space-x-2 pt-2">
-                <CheckSquare 
-                  className={`h-5 w-5 cursor-pointer ${mergeConfig.randomizeQuestions ? 'text-blue-600' : 'text-gray-300'}`}
-                  onClick={() => setMergeConfig(prev => ({ ...prev, randomizeQuestions: !prev.randomizeQuestions }))}
-                />
-                <Label onClick={() => setMergeConfig(prev => ({ ...prev, randomizeQuestions: !prev.randomizeQuestions }))}>
-                  Randomize Questions
-                </Label>
-              </div>
-            </div>
-
-            <div className="bg-gray-50 p-4 rounded-lg border">
-              <h3 className="font-medium mb-3">Selected Exams</h3>
-              <div className="space-y-2 max-h-60 overflow-y-auto">
-                {selectedExamsDetails.map(exam => (
-                  <div key={exam.id} className="text-sm p-2 bg-white rounded border flex justify-between">
-                    <span className="truncate flex-1 mr-2" title={exam.title}>{exam.title}</span>
-                    <span className="text-gray-500 text-xs whitespace-nowrap">
-                      {exam.questionCount} Qs / {exam.settings.totalMarks} Pts
-                    </span>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-4 pt-3 border-t space-y-1 text-sm">
-                <div className="flex justify-between font-medium">
-                  <span>Total Questions:</span>
-                  <span>{mergedTotals.questions}</span>
+                          <div className={`flex-1 ${viewMode === 'list' ? 'flex items-center justify-between p-4' : ''}`}>
+                            <CardHeader className={viewMode === 'list' ? 'p-0 flex-1' : 'pb-2 pt-10'}>
+                              <div className="flex justify-between items-start gap-2">
+                                <CardTitle className="text-base font-semibold line-clamp-1 group-hover:text-primary transition-colors" title={exam.title}>
+                                  {exam.title}
+                                </CardTitle>
+                                {viewMode === 'grid' && (
+                                  <Badge variant={
+                                    exam.status === 'published' ? 'default' : 
+                                    exam.status === 'draft' ? 'secondary' : 'outline'
+                                  } className="shrink-0">
+                                    {exam.status}
+                                  </Badge>
+                                )}
+                              </div>
+                              <CardDescription className="line-clamp-2 h-10 text-xs mt-1">
+                                {exam.description || 'No description provided'}
+                              </CardDescription>
+                            </CardHeader>
+                            
+                            <CardContent className={viewMode === 'list' ? 'p-0 flex items-center gap-6' : 'pt-2'}>
+                              <div className={`flex text-xs text-muted-foreground ${viewMode === 'list' ? 'gap-6' : 'justify-between mb-4'}`}>
+                                <span className="flex items-center"><FileText className="w-3 h-3 mr-1" /> {exam.questionCount} Qs</span>
+                                <span className="flex items-center"><Clock className="w-3 h-3 mr-1" /> {exam.settings.duration} min</span>
+                                {viewMode === 'list' && (
+                                  <span className="flex items-center">{formatRelativeTime(exam.createdAt)}</span>
+                                )}
+                              </div>
+                              
+                              {viewMode === 'grid' && (
+                                <div className="flex items-center justify-between pt-4 border-t mt-2">
+                                  <div className="text-xs text-muted-foreground">
+                                    {formatRelativeTime(exam.createdAt)}
+                                  </div>
+                                  <div className="flex gap-1">
+                                    {isTeacher && (
+                                      <>
+                                        {exam.status !== 'published' && (
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <Button 
+                                                variant="ghost" 
+                                                size="sm" 
+                                                className="h-7 w-7 p-0"
+                                                onClick={(e) => {
+                                                  e.stopPropagation()
+                                                  navigate(`/exams/${exam.id}/edit`)
+                                                }}
+                                              >
+                                                <Edit className="h-3.5 w-3.5" />
+                                              </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Edit</TooltipContent>
+                                          </Tooltip>
+                                        )}
+                                        
+                                        <DropdownMenu>
+                                          <DropdownMenuTrigger asChild>
+                                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                                              <MoreVertical className="h-3.5 w-3.5" />
+                                            </Button>
+                                          </DropdownMenuTrigger>
+                                          <DropdownMenuContent align="end">
+                                            {exam.status === 'published' ? (
+                                              <DropdownMenuItem onClick={(e) => {
+                                                e.stopPropagation()
+                                                unpublishExamMutation.mutate(exam.id)
+                                              }}>
+                                                <Eye className="mr-2 h-4 w-4" /> Unpublish
+                                              </DropdownMenuItem>
+                                            ) : (
+                                              <DropdownMenuItem onClick={(e) => {
+                                                e.stopPropagation()
+                                                publishExamMutation.mutate(exam.id)
+                                              }}>
+                                                <Eye className="mr-2 h-4 w-4" /> Publish
+                                              </DropdownMenuItem>
+                                            )}
+                                            <DropdownMenuItem onClick={(e) => {
+                                              e.stopPropagation()
+                                              navigate(`/exams/${exam.id}/settings`)
+                                            }}>
+                                              <Settings className="mr-2 h-4 w-4" /> Settings
+                                            </DropdownMenuItem>
+                                            <DropdownMenuSeparator />
+                                            <DropdownMenuItem 
+                                              className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                                              onClick={(e) => {
+                                                e.stopPropagation()
+                                                setExamToDelete(exam)
+                                              }}
+                                            >
+                                              <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                            </DropdownMenuItem>
+                                          </DropdownMenuContent>
+                                        </DropdownMenu>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </CardContent>
+                          </div>
+                        </Card>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
                 </div>
-                <div className="flex justify-between font-medium">
-                  <span>Total Marks:</span>
-                  <span>{mergedTotals.marks}</span>
-                </div>
-              </div>
+              )}
             </div>
           </div>
+        </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsMergeModalOpen(false)}>Cancel</Button>
-            <Button 
-              onClick={() => mergeExamsMutation.mutate()}
-              disabled={!mergeConfig.title || mergeExamsMutation.isLoading}
-            >
-              {mergeExamsMutation.isLoading ? 'Merging...' : 'Create Merged Exam'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        {/* Create Folder Modal */}
+        <Dialog open={isCreateFolderOpen} onOpenChange={setIsCreateFolderOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create New Folder</DialogTitle>
+              <DialogDescription>
+                Create a folder to organize your exams.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Folder Name</Label>
+                <Input
+                  value={newFolderName}
+                  onChange={(e) => setNewFolderName(e.target.value)}
+                  placeholder="e.g., Mathematics 101"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Description (Optional)</Label>
+                <Input
+                  value={newFolderDescription}
+                  onChange={(e) => setNewFolderDescription(e.target.value)}
+                  placeholder="Brief description of folder contents"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsCreateFolderOpen(false)}>Cancel</Button>
+              <Button onClick={() => createFolderMutation.mutate(newFolderName)} disabled={!newFolderName}>
+                Create Folder
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
-      {/* Delete Folder Dialog */}
-      <Dialog open={!!folderToDelete} onOpenChange={(open: boolean) => !open && setFolderToDelete(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Folder</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete "{folderToDelete?.name}"? This action cannot be undone.
-              Any exams inside will be moved to the parent folder or root.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setFolderToDelete(null)}>Cancel</Button>
-            <Button 
-              variant="destructive" 
-              onClick={() => folderToDelete && deleteFolderMutation.mutate(folderToDelete._id)}
-              disabled={deleteFolderMutation.isLoading}
-            >
-              {deleteFolderMutation.isLoading ? 'Deleting...' : 'Delete'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        {/* Delete Confirmation Dialogs */}
+        <Dialog open={!!folderToDelete} onOpenChange={(open) => !open && setFolderToDelete(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete Folder</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete "{folderToDelete?.name}"? This action cannot be undone and may affect items inside.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setFolderToDelete(null)}>Cancel</Button>
+              <Button variant="destructive" onClick={() => folderToDelete && deleteFolderMutation.mutate(folderToDelete._id)}>
+                Delete
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
-      {/* Delete Exam Dialog */}
-      <Dialog open={!!examToDelete} onOpenChange={(open: boolean) => !open && setExamToDelete(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Exam</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete "{examToDelete?.title}"? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setExamToDelete(null)}>Cancel</Button>
-            <Button 
-              variant="destructive" 
-              onClick={() => examToDelete && deleteExamMutation.mutate(examToDelete.id)}
-              disabled={deleteExamMutation.isLoading}
-            >
-              {deleteExamMutation.isLoading ? 'Deleting...' : 'Delete'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+        <Dialog open={!!examToDelete} onOpenChange={(open) => !open && setExamToDelete(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete Exam</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete "{examToDelete?.title}"? This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setExamToDelete(null)}>Cancel</Button>
+              <Button variant="destructive" onClick={() => examToDelete && deleteExamMutation.mutate(examToDelete.id)}>
+                Delete
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Move Modal */}
+        <Dialog open={isMoveModalOpen} onOpenChange={setIsMoveModalOpen}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Move {itemsToMove.length} Item{itemsToMove.length !== 1 ? 's' : ''}</DialogTitle>
+                    <DialogDescription>Select a destination folder</DialogDescription>
+                </DialogHeader>
+                <div className="max-h-[300px] overflow-y-auto border rounded-md p-2">
+                    <div 
+                        className={`p-2 cursor-pointer hover:bg-gray-100 rounded flex items-center ${targetFolderId === 'root' ? 'bg-blue-50 text-blue-600' : ''}`}
+                        onClick={() => setTargetFolderId('root')}
+                    >
+                        <LayoutGrid className="mr-2 h-4 w-4" /> Root (All Exams)
+                    </div>
+                    {allFolders.map(f => (
+                        <div 
+                            key={f._id}
+                            className={`p-2 cursor-pointer hover:bg-gray-100 rounded flex items-center ${targetFolderId === f._id ? 'bg-blue-50 text-blue-600' : ''}`}
+                            style={{ marginLeft: f.parent ? '20px' : '0px' }} // Simple indentation
+                            onClick={() => setTargetFolderId(f._id)}
+                        >
+                            <FolderIcon className="mr-2 h-4 w-4" /> {f.name}
+                        </div>
+                    ))}
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsMoveModalOpen(false)}>Cancel</Button>
+                    <Button onClick={() => moveItemsMutation.mutate()} disabled={!targetFolderId}>Move</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+
+      </div>
+    </TooltipProvider>
   )
 }
 

@@ -143,6 +143,9 @@ export interface Exam {
     allowedUsers?: string[]
     accessCode?: string
     requireApproval?: boolean
+    inviteCode?: string
+    inviteLink?: string
+    inviteLinkExpiry?: string
   }
   status: 'draft' | 'published' | 'active' | 'completed' | 'archived'
   isPublished: boolean
@@ -151,6 +154,10 @@ export interface Exam {
   isActive?: boolean
   statistics?: any
   folders?: string[]
+  originalFiles?: {
+    questionPaper?: { url: string; path: string }
+    answerKey?: { url: string; path: string }
+  }
 }
 
 export interface Folder {
@@ -336,6 +343,25 @@ export const examAPI = {
     access?: any
   }): Promise<AxiosResponse<{ exam: Exam; message: string }>> =>
     api.post('/exam/merge', data),
+
+  // Invite system
+  generateInviteCode: (id: string): Promise<AxiosResponse<{ message: string; inviteCode: string }>> =>
+    api.post(`/exam/${id}/invite-code`),
+
+  revokeInviteCode: (id: string): Promise<AxiosResponse<{ message: string }>> =>
+    api.delete(`/exam/${id}/invite-code`),
+
+  generateInviteLink: (id: string): Promise<AxiosResponse<{ message: string; inviteLink: string; expiry: string }>> =>
+    api.post(`/exam/${id}/invite-link`),
+
+  revokeInviteLink: (id: string): Promise<AxiosResponse<{ message: string }>> =>
+    api.delete(`/exam/${id}/invite-link`),
+
+  addUserToExam: (id: string, userId: string): Promise<AxiosResponse<{ message: string; exam: Exam }>> =>
+    api.post(`/exam/${id}/users/add`, { userId }),
+
+  removeUserFromExam: (id: string, userId: string): Promise<AxiosResponse<{ message: string; exam: Exam }>> =>
+    api.post(`/exam/${id}/users/remove`, { userId }),
 }
 
 // Folder API
@@ -351,6 +377,9 @@ export const folderAPI = {
 
   getFolders: (parentId?: string): Promise<AxiosResponse<Folder[]>> =>
     api.get('/folders', { params: { parentId } }),
+
+  getFolder: (id: string): Promise<AxiosResponse<Folder>> =>
+    api.get(`/folders/${id}`),
 
   updateFolder: (
     id: string,
@@ -602,6 +631,12 @@ export const resultAPI = {
     data: { type: string; details?: string }
   ): Promise<AxiosResponse<{ message: string; flag: any }>> =>
     api.post(`/result/${resultId}/cheating-flag`, data),
+
+  gradeResult: (
+    resultId: string,
+    data: { questionId: string; marksAwarded: number }
+  ): Promise<AxiosResponse<{ message: string; result: any }>> =>
+    api.put(`/result/${resultId}/grade`, data),
 }
 
 // Bookmark API

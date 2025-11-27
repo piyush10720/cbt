@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import { Question } from '@/lib/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -100,35 +100,54 @@ const ExamWizard: React.FC<ExamWizardProps> = ({
     }
   ]
 
-  const handleQuestionsUpdate = (newQuestions: Question[] | ((prev: Question[]) => Question[])) => {
-    // Support functional updates
-    const questionsToSet = typeof newQuestions === 'function' 
-      ? newQuestions(questions) 
-      : newQuestions
-    
-    // Normalize questions to ensure numeric and descriptive types have correct array initialized
-    const normalizedQuestions = questionsToSet.map((q) => {
-      const normalized = { ...q }
+  const handleQuestionsUpdate = useCallback((newQuestions: Question[] | ((prev: Question[]) => Question[])) => {
+    setQuestions(prevQuestions => {
+      // Support functional updates
+      const questionsToSet = typeof newQuestions === 'function' 
+        ? newQuestions(prevQuestions) 
+        : newQuestions
       
-      // Fix numeric and descriptive correct arrays
-      if ((q.type === 'numeric' || q.type === 'descriptive') && (!q.correct || q.correct.length === 0)) {
-        normalized.correct = ['']
-      }
-      
-      // Transform legacy imageUrl to diagram structure for backward compatibility
-      if ((q as any).imageUrl && !q.diagram) {
-        normalized.diagram = {
-          present: true,
-          url: (q as any).imageUrl,
-          description: 'Question diagram'
+      // Normalize questions to ensure numeric and descriptive types have correct array initialized
+      const normalizedQuestions = questionsToSet.map((q) => {
+        // Check if normalization is needed to avoid creating new object references unnecessarily
+        let needsUpdate = false
+        
+        // Check 1: Numeric/Descriptive correct array
+        if ((q.type === 'numeric' || q.type === 'descriptive') && (!q.correct || q.correct.length === 0)) {
+           needsUpdate = true
         }
-      }
+        
+        // Check 2: Legacy imageUrl
+        if ((q as any).imageUrl && !q.diagram) {
+           needsUpdate = true
+        }
+        
+        if (!needsUpdate) {
+            return q
+        }
+
+        const normalized = { ...q }
+        
+        // Fix numeric and descriptive correct arrays
+        if ((q.type === 'numeric' || q.type === 'descriptive') && (!q.correct || q.correct.length === 0)) {
+          normalized.correct = ['']
+        }
+        
+        // Transform legacy imageUrl to diagram structure for backward compatibility
+        if ((q as any).imageUrl && !q.diagram) {
+          normalized.diagram = {
+            present: true,
+            url: (q as any).imageUrl,
+            description: 'Question diagram'
+          }
+        }
+        
+        return normalized
+      })
       
-      return normalized
+      return normalizedQuestions
     })
-    
-    setQuestions(normalizedQuestions)
-  }
+  }, [])
 
   const handleSettingsUpdate = (newSettings: any) => {
     setExamSettings(newSettings)

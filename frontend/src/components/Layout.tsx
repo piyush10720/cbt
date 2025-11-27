@@ -19,13 +19,17 @@ import {
   Menu,
   Plus,
   Home,
-  BookmarkCheck
+  BookmarkCheck,
+  Settings,
+  Bell
 } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 
 const Layout: React.FC = () => {
   const { user, logout, isTeacher } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false)
 
   const isExamTakingRoute = /^\/exams\/[^/]+\/take$/.test(location.pathname)
 
@@ -47,7 +51,7 @@ const Layout: React.FC = () => {
 
   if (isExamTakingRoute) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-background font-sans antialiased">
         <main className="flex-1">
           <Outlet />
         </main>
@@ -56,133 +60,176 @@ const Layout: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background font-sans antialiased flex flex-col">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            {/* Logo */}
-            <div className="flex items-center">
-              <Link to="/dashboard" className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                  <BookOpen className="w-5 h-5 text-white" />
-                </div>
-                <span className="text-xl font-bold text-gray-900">CBT Platform</span>
-              </Link>
-            </div>
+      <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 flex h-16 items-center justify-between">
+          {/* Logo & Desktop Nav */}
+          <div className="flex items-center gap-8">
+            <Link to="/dashboard" className="flex items-center space-x-2 transition-transform hover:scale-105">
+              <div className="w-9 h-9 bg-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
+                <BookOpen className="w-5 h-5 text-primary-foreground" />
+              </div>
+              <span className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent dark:from-white dark:to-gray-300">
+                CBT Platform
+              </span>
+            </Link>
 
-            {/* Navigation */}
-            <nav className="hidden md:flex space-x-8">
+            <nav className="hidden md:flex items-center space-x-1">
               {navigation.map((item) => {
                 const Icon = item.icon
+                const active = isActive(item.href)
                 return (
                   <Link
                     key={item.name}
                     to={item.href}
-                    className={`flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                      isActive(item.href)
-                        ? 'bg-blue-100 text-blue-700'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                    className={`relative flex items-center space-x-2 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
+                      active
+                        ? 'text-primary bg-primary/10'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-accent'
                     }`}
                   >
                     <Icon className="w-4 h-4" />
                     <span>{item.name}</span>
+                    {active && (
+                      <motion.div
+                        layoutId="navbar-indicator"
+                        className="absolute inset-0 rounded-full bg-primary/10 -z-10"
+                        transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                      />
+                    )}
                   </Link>
                 )
               })}
             </nav>
+          </div>
 
-            {/* Right side */}
-            <div className="flex items-center space-x-4">
-              {/* Create Exam Button (Teachers only) */}
-              {isTeacher && (
-                <Button
-                  onClick={() => navigate('/exams/create')}
-                  size="sm"
-                  className="hidden sm:flex items-center space-x-1"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Create Exam</span>
-                </Button>
-              )}
-
-              {/* User Menu */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="flex items-center space-x-2">
-                    <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
-                      <User className="w-4 h-4" />
-                    </div>
-                    <span className="hidden sm:block text-sm font-medium">
-                      {user?.name}
-                    </span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuLabel>
-                    <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium">{user?.name}</p>
-                      <p className="text-xs text-gray-500">{user?.email}</p>
-                      <p className="text-xs text-blue-600 capitalize">{user?.role}</p>
-                    </div>
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => navigate('/profile')}>
-                    <User className="mr-2 h-4 w-4" />
-                    Profile
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleLogout}>
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Logout
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              {/* Mobile menu button */}
-              <Button variant="ghost" size="icon" className="md:hidden">
-                <Menu className="w-5 h-5" />
+          {/* Right Actions */}
+          <div className="flex items-center space-x-4">
+            {isTeacher && (
+              <Button
+                onClick={() => navigate('/exams/create')}
+                size="sm"
+                className="hidden sm:flex items-center space-x-1 shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Create Exam</span>
               </Button>
-            </div>
+            )}
+
+            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
+              <Bell className="w-5 h-5" />
+            </Button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="relative h-9 w-9 rounded-full ring-2 ring-transparent hover:ring-primary/20 transition-all p-0 overflow-hidden">
+                  <div className="h-full w-full bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center text-white font-medium">
+                    {user?.name?.charAt(0).toUpperCase()}
+                  </div>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56 p-2">
+                <DropdownMenuLabel>
+                  <div className="flex flex-col space-y-1">
+                    <p className="text-sm font-medium leading-none">{user?.name}</p>
+                    <p className="text-xs text-muted-foreground">{user?.email}</p>
+                    <div className="flex mt-2">
+                      <span className="text-[10px] uppercase tracking-wider font-bold bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                        {user?.role}
+                      </span>
+                    </div>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => navigate('/profile')} className="cursor-pointer">
+                  <User className="mr-2 h-4 w-4" />
+                  Profile
+                </DropdownMenuItem>
+                <DropdownMenuItem className="cursor-pointer">
+                  <Settings className="mr-2 h-4 w-4" />
+                  Settings
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50">
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Logout
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Mobile Menu Toggle */}
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="md:hidden"
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            >
+              <Menu className="w-5 h-5" />
+            </Button>
           </div>
         </div>
 
         {/* Mobile Navigation */}
-        <div className="md:hidden border-t bg-white">
-          <div className="px-2 py-3 space-y-1">
-            {navigation.map((item) => {
-              const Icon = item.icon
-              return (
-                <Link
-                  key={item.name}
-                  to={item.href}
-                  className={`flex items-center space-x-2 px-3 py-2 rounded-md text-base font-medium ${
-                    isActive(item.href)
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                  }`}
-                >
-                  <Icon className="w-5 h-5" />
-                  <span>{item.name}</span>
-                </Link>
-              )
-            })}
-            {isTeacher && (
-              <Link
-                to="/exams/create"
-                className="flex items-center space-x-2 px-3 py-2 rounded-md text-base font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-              >
-                <Plus className="w-5 h-5" />
-                <span>Create Exam</span>
-              </Link>
-            )}
-          </div>
-        </div>
+        <AnimatePresence>
+          {isMobileMenuOpen && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="md:hidden border-t bg-background overflow-hidden"
+            >
+              <div className="px-4 py-4 space-y-2">
+                {navigation.map((item) => {
+                  const Icon = item.icon
+                  return (
+                    <Link
+                      key={item.name}
+                      to={item.href}
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className={`flex items-center space-x-3 px-4 py-3 rounded-xl text-base font-medium transition-colors ${
+                        isActive(item.href)
+                          ? 'bg-primary/10 text-primary'
+                          : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                      }`}
+                    >
+                      <Icon className="w-5 h-5" />
+                      <span>{item.name}</span>
+                    </Link>
+                  )
+                })}
+                {isTeacher && (
+                  <Button 
+                    className="w-full mt-4" 
+                    onClick={() => {
+                      navigate('/exams/create')
+                      setIsMobileMenuOpen(false)
+                    }}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Create Exam
+                  </Button>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </header>
 
-      {/* Main Content */}
-      <main className="flex-1">
-        <Outlet />
+      {/* Main Content with Transition */}
+      <main className="flex-1 w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={location.pathname}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+            className="h-full"
+          >
+            <Outlet />
+          </motion.div>
+        </AnimatePresence>
       </main>
     </div>
   )

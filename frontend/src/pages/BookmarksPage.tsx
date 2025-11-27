@@ -1,8 +1,8 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from 'react-query'
 import { useNavigate } from 'react-router-dom'
 import { bookmarkAPI, Bookmark, BookmarkFolder } from '@/lib/api'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import LoadingSpinner from '@/components/LoadingSpinner'
@@ -10,44 +10,22 @@ import {
   BookmarkCheck, 
   Search, 
   FolderOpen, 
-  Trash2, 
   FileText, 
-  CheckCircle2,
-  XCircle,
-  Clock,
-  Award,
-  ChevronRight,
-  Calendar
+  LayoutGrid,
+  List,
+  ArrowRight
 } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { formatDate, getPerformanceColor } from '@/lib/utils'
-
-// Helper function to highlight matched text
-const highlightText = (text: string, query: string) => {
-  if (!query.trim()) return text
-
-  const parts = text.split(new RegExp(`(${query})`, 'gi'))
-  
-  return (
-    <>
-      {parts.map((part, index) => 
-        part.toLowerCase() === query.toLowerCase() ? (
-          <mark key={index} className="bg-yellow-200 text-gray-900 font-medium px-0.5 rounded">
-            {part}
-          </mark>
-        ) : (
-          <span key={index}>{part}</span>
-        )
-      )}
-    </>
-  )
-}
+import { Badge } from '@/components/ui/badge'
+import { motion } from 'framer-motion'
+import QuestionCard from '@/components/QuestionCard'
 
 const BookmarksPage: React.FC = () => {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [selectedFolder, setSelectedFolder] = useState<string>('all')
   const [searchQuery, setSearchQuery] = useState('')
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
 
   // Fetch folders
   const {
@@ -70,8 +48,7 @@ const BookmarksPage: React.FC = () => {
   // Fetch bookmarks
   const {
     data: bookmarksData,
-    isLoading: bookmarksLoading,
-    refetch: refetchBookmarks
+    isLoading: bookmarksLoading
   } = useQuery<{ bookmarks: Bookmark[]; count: number }>(
     ['bookmarks', selectedFolder, searchQuery],
     async () => {
@@ -123,126 +100,149 @@ const BookmarksPage: React.FC = () => {
     }
   }
 
-  const renderAnswer = (answer: any, shouldHighlight: boolean = false) => {
-    if (!answer || answer === null || answer === undefined || answer === '') {
-      return <span className="text-gray-400 italic">No answer</span>
-    }
-
-    let answerText = ''
-    if (Array.isArray(answer)) {
-      answerText = answer.join(', ')
-    } else if (typeof answer === 'boolean') {
-      answerText = answer ? 'True' : 'False'
-    } else {
-      answerText = String(answer)
-    }
-
-    if (shouldHighlight && searchQuery) {
-      return highlightText(answerText, searchQuery)
-    }
-
-    return answerText
-  }
-
   const isLoading = foldersLoading || bookmarksLoading
 
+  const container = {
+    hidden: { opacity: 0 },
+    show: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.05
+      }
+    }
+  }
+
+  const item = {
+    hidden: { opacity: 0, y: 20 },
+    show: { opacity: 1, y: 0 }
+  }
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
-          <BookmarkCheck className="h-8 w-8 text-blue-600" />
-          My Bookmarks
-        </h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Save and organize questions for later review
-        </p>
+    <div className="min-h-screen bg-background pb-12">
+      {/* Hero Header */}
+      <div className="relative bg-gray-900 text-white overflow-hidden mb-8">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/90 to-purple-900/90 z-0" />
+        <div className="absolute inset-0 bg-[url('/grid-pattern.svg')] opacity-10 z-0" />
+        
+        <div className="relative z-10 w-full px-4 py-12">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+              <h1 className="text-3xl font-bold mb-2 flex items-center gap-3">
+                <BookmarkCheck className="h-8 w-8 text-blue-400" />
+                My Bookmarks
+              </h1>
+              <p className="text-white/70 max-w-xl">
+                Review and manage your saved questions for focused study sessions.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 bg-white/10 p-1 rounded-lg backdrop-blur-sm">
+              <Button 
+                variant={viewMode === 'grid' ? 'secondary' : 'ghost'} 
+                size="sm" 
+                onClick={() => setViewMode('grid')}
+                className={viewMode === 'grid' ? 'bg-white text-primary' : 'text-white hover:bg-white/20'}
+              >
+                <LayoutGrid className="h-4 w-4 mr-2" /> Grid
+              </Button>
+              <Button 
+                variant={viewMode === 'list' ? 'secondary' : 'ghost'} 
+                size="sm" 
+                onClick={() => setViewMode('list')}
+                className={viewMode === 'list' ? 'bg-white text-primary' : 'text-white hover:bg-white/20'}
+              >
+                <List className="h-4 w-4 mr-2" /> List
+              </Button>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div className="grid lg:grid-cols-4 gap-6">
-        {/* Sidebar - Folders */}
-        <div className="lg:col-span-1">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <FolderOpen className="h-5 w-5" />
-                Folders
-              </CardTitle>
-              <CardDescription>Browse by exam</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-1">
-              {isLoading ? (
-                <div className="py-8 text-center">
-                  <LoadingSpinner size="sm" />
-                </div>
-              ) : (
-                <>
-                  {folders.map((folder) => (
+      <div className="w-full px-4">
+        <div className="grid lg:grid-cols-4 gap-6">
+          {/* Sidebar - Folders */}
+          <div className="lg:col-span-1 space-y-6">
+            <Card className="border-none shadow-md">
+              <CardHeader className="bg-muted/30 pb-4">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <FolderOpen className="h-5 w-5 text-primary" />
+                  Folders
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-2">
+                {isLoading && !folders.length ? (
+                  <div className="py-8 text-center">
+                    <LoadingSpinner size="sm" />
+                  </div>
+                ) : (
+                  <div className="space-y-1">
                     <button
-                      key={folder._id}
-                      onClick={() => setSelectedFolder(folder._id)}
-                      className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
-                        selectedFolder === folder._id
-                          ? 'bg-blue-50 text-blue-700 font-medium'
-                          : 'hover:bg-gray-50 text-gray-700'
+                      onClick={() => setSelectedFolder('all')}
+                      className={`w-full text-left px-3 py-2.5 rounded-md transition-all flex items-center justify-between ${
+                        selectedFolder === 'all'
+                          ? 'bg-primary/10 text-primary font-medium'
+                          : 'hover:bg-muted text-muted-foreground hover:text-foreground'
                       }`}
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                          {folder._id === 'all' ? (
-                            <FileText className="h-4 w-4 flex-shrink-0" />
-                          ) : (
-                            <ChevronRight className="h-4 w-4 flex-shrink-0" />
-                          )}
+                      <div className="flex items-center gap-3">
+                        <LayoutGrid className="h-4 w-4" />
+                        <span className="text-sm">All Bookmarks</span>
+                      </div>
+                      <Badge variant="secondary" className="bg-background/50">{bookmarksData?.count || 0}</Badge>
+                    </button>
+                    
+                    <div className="my-2 border-t border-border/50" />
+                    
+                    {folders.map((folder) => (
+                      <button
+                        key={folder._id}
+                        onClick={() => setSelectedFolder(folder._id)}
+                        className={`w-full text-left px-3 py-2.5 rounded-md transition-all flex items-center justify-between ${
+                          selectedFolder === folder._id
+                            ? 'bg-primary/10 text-primary font-medium'
+                            : 'hover:bg-muted text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <FileText className="h-4 w-4 flex-shrink-0" />
                           <span className="text-sm truncate">{folder.examTitle}</span>
                         </div>
-                        <span className="text-xs bg-gray-100 px-2 py-0.5 rounded-full ml-2 flex-shrink-0">
-                          {folder.count}
-                        </span>
-                      </div>
-                    </button>
-                  ))}
-                  {folders.length === 0 && (
-                    <p className="text-sm text-gray-500 text-center py-8">
-                      No bookmarks yet
-                    </p>
-                  )}
-                </>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+                        <Badge variant="secondary" className="bg-background/50 ml-2">{folder.count}</Badge>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
 
-        {/* Main Content - Bookmarks */}
-        <div className="lg:col-span-3 space-y-4">
-          {/* Search Bar */}
-          <Card>
-            <CardContent className="pt-6">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  type="text"
-                  placeholder="Search bookmarks by question text, exam name, notes, or tags..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Bookmarks List */}
-          {isLoading ? (
-            <div className="flex justify-center py-20">
-              <LoadingSpinner size="lg" />
+          {/* Main Content - Bookmarks */}
+          <div className="lg:col-span-3 space-y-6">
+            {/* Search Bar */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Search bookmarks by question text, exam name, notes, or tags..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 h-12 bg-background shadow-sm border-muted focus:border-primary transition-all"
+              />
             </div>
-          ) : bookmarks.length === 0 ? (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <BookmarkCheck className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                <h3 className="text-lg font-semibold text-gray-800 mb-2">
+
+            {/* Bookmarks List */}
+            {isLoading ? (
+              <div className="flex justify-center py-20">
+                <LoadingSpinner size="lg" />
+              </div>
+            ) : bookmarks.length === 0 ? (
+              <div className="text-center py-20 bg-muted/10 rounded-xl border border-dashed">
+                <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+                  <BookmarkCheck className="h-8 w-8 text-muted-foreground" />
+                </div>
+                <h3 className="text-lg font-medium">
                   {searchQuery ? 'No bookmarks found' : 'No bookmarks yet'}
                 </h3>
-                <p className="text-sm text-gray-500 mb-4">
+                <p className="text-muted-foreground mt-1 mb-6">
                   {searchQuery
                     ? 'Try adjusting your search query'
                     : 'Start bookmarking questions from your exam results'}
@@ -252,128 +252,71 @@ const BookmarksPage: React.FC = () => {
                     View Results
                   </Button>
                 )}
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-4">
-              {bookmarks.map((bookmark) => {
-                const isCorrect = bookmark.isCorrect
-                const hasAnswer = bookmark.userAnswer !== null && 
-                                 bookmark.userAnswer !== undefined && 
-                                 bookmark.userAnswer !== ''
+              </div>
+            ) : (
+              <motion.div 
+                variants={container}
+                initial="hidden"
+                animate="show"
+                className={viewMode === 'grid' ? "grid md:grid-cols-2 gap-4" : "space-y-4"}
+              >
+                {bookmarks.map((bookmark) => {
+                  const isCorrect = bookmark.isCorrect
+                  
+                  // Construct question object for QuestionCard
+                  // Accessing properties from the populated questionId object
+                  const question = bookmark.questionId
+                  const questionData = {
+                    id: question?._id || question?.id || bookmark._id,
+                    text: bookmark.questionText || question?.text,
+                    type: bookmark.questionType || question?.type,
+                    options: question?.options || [],
+                    imageUrl: question?.diagram?.url,
+                    marks: question?.marks || 1,
+                    tags: bookmark.tags || question?.tags || [],
+                    explanation: question?.explanation
+                  }
 
-                return (
-                  <Card
-                    key={bookmark._id}
-                    className={`${
-                      !hasAnswer
-                        ? 'border-slate-200'
-                        : isCorrect
-                        ? 'border-green-200 bg-green-50/30'
-                        : 'border-red-200 bg-red-50/30'
-                    }`}
-                  >
-                    <CardHeader>
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1 space-y-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <CardTitle className="text-base">
-                              {searchQuery ? highlightText(bookmark.examTitle, searchQuery) : bookmark.examTitle}
-                            </CardTitle>
-                            <span className={`text-xs font-semibold uppercase tracking-wide px-2 py-1 rounded ${
-                              !hasAnswer
-                                ? 'bg-gray-100 text-gray-600'
-                                : isCorrect
-                                ? 'bg-green-100 text-green-700'
-                                : 'bg-red-100 text-red-700'
-                            }`}>
-                              {!hasAnswer
-                                ? 'Unanswered'
-                                : isCorrect
-                                ? 'Correct'
-                                : 'Incorrect'}
-                            </span>
-                          </div>
-                          <CardDescription className="flex items-center gap-2 text-xs">
-                            <Calendar className="h-3 w-3" />
-                            Bookmarked {formatDate(bookmark.createdAt)}
-                          </CardDescription>
+                  return (
+                    <motion.div variants={item} key={bookmark._id} className="h-full">
+                      <div className="relative h-full flex flex-col">
+                        <div className="absolute top-3 right-12 z-10" title={bookmark.examTitle}>
+                          <Badge variant="outline" className="bg-background/80 backdrop-blur-sm max-w-[150px] truncate">
+                            {bookmark.examTitle}
+                          </Badge>
                         </div>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleDeleteBookmark(bookmark._id)}
-                          disabled={deleteBookmarkMutation.isLoading}
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      {/* Question Text */}
-                      <div>
-                        <p className="text-sm font-medium text-gray-700 mb-1">Question:</p>
-                        <p className="text-sm text-gray-600 whitespace-pre-line">
-                          {searchQuery ? highlightText(bookmark.questionText, searchQuery) : bookmark.questionText}
-                        </p>
-                      </div>
-
-                      {/* Answers */}
-                      <div className="grid sm:grid-cols-2 gap-4 text-sm">
-                        <div className="bg-white/50 rounded-lg border border-gray-200 p-3">
-                          <p className="text-xs uppercase text-gray-500 mb-1 flex items-center gap-1">
-                            {isCorrect ? (
-                              <CheckCircle2 className="h-3 w-3 text-green-600" />
-                            ) : (
-                              <XCircle className="h-3 w-3 text-red-600" />
-                            )}
-                            Your answer
-                          </p>
-                          <p className="text-gray-800 font-medium">
-                            {renderAnswer(bookmark.userAnswer, true)}
-                          </p>
-                        </div>
-                        <div className="bg-white/50 rounded-lg border border-gray-200 p-3">
-                          <p className="text-xs uppercase text-gray-500 mb-1">Correct answer</p>
-                          <p className="text-gray-800 font-medium">
-                            {bookmark.correctAnswer && bookmark.correctAnswer.length > 0
-                              ? searchQuery 
-                                ? highlightText(bookmark.correctAnswer.join(', '), searchQuery)
-                                : bookmark.correctAnswer.join(', ')
-                              : 'Not available'}
-                          </p>
+                        
+                        <QuestionCard
+                          question={questionData}
+                          userAnswer={bookmark.userAnswer}
+                          correctAnswer={bookmark.correctAnswer}
+                          isCorrect={isCorrect}
+                          isBookmarked={true}
+                          onToggleBookmark={() => handleDeleteBookmark(bookmark._id)}
+                          marksAwarded={bookmark.marksAwarded}
+                          showCorrectAnswer={true}
+                          showUserAnswer={true}
+                          showExplanation={!!question?.explanation}
+                          showTags={true}
+                        />
+                        
+                        <div className="mt-2 flex justify-end px-1">
+                           <Button 
+                              size="sm" 
+                              variant="ghost" 
+                              className="h-8 text-xs text-muted-foreground hover:text-primary"
+                              onClick={() => navigate(`/results/${bookmark.resultId}`)}
+                            >
+                              View Full Result <ArrowRight className="h-3 w-3 ml-1" />
+                            </Button>
                         </div>
                       </div>
-
-                      {/* Metadata */}
-                      <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500 border-t border-gray-200 pt-3">
-                        <span className="flex items-center gap-1">
-                          <Award className="h-4 w-4 text-blue-600" />
-                          Marks: {bookmark.marksAwarded}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <FileText className="h-4 w-4 text-purple-600" />
-                          Type: {bookmark.questionType.replace('_', ' ')}
-                        </span>
-                      </div>
-
-                      {/* Actions */}
-                      <div className="flex gap-2 border-t border-gray-200 pt-3">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => navigate(`/results/${bookmark.resultId}`)}
-                        >
-                          View Full Result
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )
-              })}
-            </div>
-          )}
+                    </motion.div>
+                  )
+                })}
+              </motion.div>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -381,4 +324,3 @@ const BookmarksPage: React.FC = () => {
 }
 
 export default BookmarksPage
-

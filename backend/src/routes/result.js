@@ -8,7 +8,8 @@ const {
   getExamResults,
   addCheatingFlag,
   explainAnswer,
-  submitAnswerValidation
+  submitAnswerValidation,
+  gradeResult
 } = require('../controllers/resultController');
 const { authenticate } = require('../middleware/auth');
 
@@ -23,6 +24,7 @@ router.get('/:resultId/progress', getExamProgress);
 router.post('/:resultId/submit', submitExam);
 router.post('/:resultId/cheating-flag', addCheatingFlag);
 router.post('/:resultId/explain', explainAnswer);
+router.put('/:resultId/grade', gradeResult);
 
 // Result viewing routes
 router.get('/exam/:examId/attempts', getExamResults); // Get all attempts for an exam (creator/admin only)

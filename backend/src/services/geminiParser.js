@@ -249,13 +249,20 @@ Requirements:
   * Note ONLY the page where it STARTS (first page where question number appears)
   * Do NOT create duplicate questions for continued text
 - For each question, note which PDF page number it STARTS on in the ORIGINAL FULL DOCUMENT.${pageOffsetNote}
-- For tables, matrix or similar stuff which is tough in text/json representation consider it as diagram.
-- FOr question number have your own counting instead of counting from question paper but for matching with answer keys consider the question number of question paper
+- For tables, matrices, or similar structured content:
+  * PRIORITIZE representing them using KaTeX-compatible LaTeX.
+  * SUPPORTED environments: \\begin{matrix}, \\begin{pmatrix}, \\begin{bmatrix}, \\begin{vmatrix}, \\begin{Vmatrix}, \\begin{array}, \\begin{aligned}, \\begin{gathered}, \\begin{cases}.
+  * AVOID unsupported environments like \\begin{tabular}, \\begin{center}, \\begin{minipage}.
+  * Use \\begin{array}{...} for table-like structures instead of tabular.
+  * This applies to BOTH questions and options.
+  * Only treat them as diagrams/images if they are extremely complex or graphical in nature.
+  * Ensure all LaTeX is valid and properly escaped for JSON (double backslashes).
+- For question number have your own counting instead of counting from question paper but for matching with answer keys consider the question number of question paper
 - Supported types: mcq_single, mcq_multi, true_false, numeric, descriptive.
 - For NUMERIC questions:
   * If answer key shows a single value (e.g., 42.5), use: "correct": ["42.5"]
-  * If answer key shows a range (e.g., 41.5 to 42.5, or 41.5-42.5), use: "correct": ["41.5-42.5"]
-  * Format range as "min-max" with no spaces
+  * If answer key shows a range (e.g., 41.5 to 42.5, or 41.5-42.5), use: "correct": ["41.5 to 42.5"]
+  * Format range as "min to max" with spaces around "to"
 - Extract question text verbatim (include any text that IS present, even if there's also an image/diagram).
 - Each question must include an "options" array with label and text for each option.
 - IMPORTANT for option labels: Extract labels WITHOUT parentheses or punctuation. For example:
@@ -368,7 +375,7 @@ For Numeric questions with range (if answer key specifies a range):
   "text": "Question text here...",
   "pageNumber": 1,
   "options": [],
-  "correct": ["41.5-42.5"],
+  "correct": ["41.5 to 42.5"],
   "marks": 2,
   "negative_marks": 0,
   "images": {

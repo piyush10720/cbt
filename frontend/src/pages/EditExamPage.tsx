@@ -1,157 +1,119 @@
-import React, { useEffect, useState } from 'react'
+import React, { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { useMutation, useQuery } from 'react-query'
+import { useMutation, useQuery, useQueryClient } from 'react-query'
 import { examAPI, Question } from '@/lib/api'
-import ExamWizard from '@/components/ExamWizard'
+import QuestionEditor from '@/components/QuestionEditor'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import LoadingSpinner from '@/components/LoadingSpinner'
-import { ArrowLeft } from 'lucide-react'
+import Breadcrumbs from '@/components/Breadcrumbs'
+import { ArrowLeft, Save } from 'lucide-react'
 import toast from 'react-hot-toast'
-
-interface LoadedExam {
-  id: string
-  title: string
-  description?: string
-  settings: any
-  schedule: any
-  access: any
-  questions: Question[]
-  originalFiles?: {
-    questionPaper?: {
-      url?: string
-    }
-  }
-}
-
-const formatDateTimeLocal = (value?: string | Date) => {
-  if (!value) return ''
-  const date = value instanceof Date ? value : new Date(value)
-  if (Number.isNaN(date.getTime())) return ''
-  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
-}
 
 const EditExamPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const [initialData, setInitialData] = useState<LoadedExam | null>(null)
+  const queryClient = useQueryClient()
+  const [questions, setQuestions] = useState<Question[]>([])
+  const [pdfUrl, setPdfUrl] = useState<string>('')
 
-  const {
-    data,
-    isLoading,
-    isError,
-    refetch
-  } = useQuery(
+  const { data, isLoading } = useQuery(
     ['exam-to-edit', id],
     async () => {
-      if (!id) {
-        throw new Error('Missing exam identifier')
-      }
+      if (!id) throw new Error('Missing exam identifier')
       const response = await examAPI.getExamById(id, true)
-      return response.data.exam as LoadedExam
+      return response.data.exam
     },
     {
       enabled: !!id,
-      retry: false,
       onSuccess: (exam) => {
         const clonedQuestions = exam.questions?.map((question) => ({
           ...question,
           id: question._id || question.id
-        }))
-
-        setInitialData({
-          id: exam.id,
-          title: exam.title,
-          description: exam.description,
-          settings: exam.settings,
-          schedule: {
-            ...exam.schedule,
-            startDate: formatDateTimeLocal(exam.schedule?.startDate),
-            endDate: formatDateTimeLocal(exam.schedule?.endDate)
-          },
-          access: exam.access,
-          originalFiles: exam.originalFiles,
-          questions: clonedQuestions
-        })
+        })) || []
+        setQuestions(clonedQuestions)
+        if (exam.originalFiles?.questionPaper?.url) {
+          setPdfUrl(exam.originalFiles.questionPaper.url)
+        }
       },
       onError: (error: any) => {
-        const message = error?.response?.data?.message || 'Failed to load exam details'
-        toast.error(message)
+        toast.error(error?.response?.data?.message || 'Failed to load exam details')
+        navigate('/exams')
       }
     }
   )
 
   const updateExamMutation = useMutation(
-    (payload: any) => {
-      if (!id) {
-        throw new Error('Missing exam identifier')
-      }
-      return examAPI.updateExam(id, payload)
+    (updatedQuestions: Question[]) => {
+      if (!id) throw new Error('Missing exam identifier')
+      // Recalculate total marks
+      const totalMarks = updatedQuestions.reduce((sum, q) => sum + (q.marks || 1), 0)
+      
+      return examAPI.updateExam(id, {
+        questions: updatedQuestions,
+        settings: {
+          ...data?.settings,
+          totalMarks
+        }
+      })
     },
     {
       onSuccess: () => {
-        toast.success('Exam updated successfully')
+        toast.success('Questions updated successfully')
+        queryClient.invalidateQueries(['exam-details', id])
+        queryClient.invalidateQueries(['exams'])
         navigate(`/exams/${id}`)
       },
       onError: (error: any) => {
-        const message = error?.response?.data?.message || 'Failed to update exam'
-        toast.error(message)
+        toast.error(error?.response?.data?.message || 'Failed to update questions')
       }
     }
   )
 
-  const handleExamUpdate = (formData: any) => {
-    updateExamMutation.mutate(formData)
+  const handleSave = () => {
+    if (questions.length === 0) {
+      toast.error('At least one question is required')
+      return
+    }
+    updateExamMutation.mutate(questions)
   }
 
-  if (isLoading || !initialData) {
+  if (isLoading || !data) {
     return (
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-        <Card>
-          <CardContent className="flex flex-col items-center space-y-4 py-12">
-            <LoadingSpinner size="lg" />
-            <p className="text-sm text-gray-500">Loading exam data...</p>
-            {isError && (
-              <Button variant="outline" onClick={() => refetch()}>
-                Retry
-              </Button>
-            )}
-          </CardContent>
-        </Card>
+      <div className="flex justify-center py-20">
+        <LoadingSpinner size="lg" />
       </div>
     )
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="mb-8 space-y-4">
-        <div className="flex items-center space-x-4">
-          <Button variant="ghost" onClick={() => navigate(`/exams/${id}`)} className="flex items-center space-x-2">
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back to Exam</span>
-          </Button>
-        </div>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      <Breadcrumbs items={[
+        { label: 'Exams', href: '/exams' },
+        { label: data.title, href: `/exams/${id}` },
+        { label: 'Edit Questions' }
+      ]} />
+
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Edit Exam</h1>
-          <p className="text-gray-600 mt-2">
-            Update exam details, schedule, and questions. Changes apply after saving.
-          </p>
+          <h1 className="text-3xl font-bold text-gray-900">Edit Questions</h1>
+          <p className="text-gray-500 mt-1">Manage questions for {data.title}</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => navigate(`/exams/${id}`)}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Exam
+          </Button>
+          <Button onClick={handleSave} disabled={updateExamMutation.isLoading}>
+            <Save className="mr-2 h-4 w-4" />
+            {updateExamMutation.isLoading ? 'Saving...' : 'Save Changes'}
+          </Button>
         </div>
       </div>
 
-      <ExamWizard
-        onComplete={handleExamUpdate}
-        loading={updateExamMutation.isLoading}
-        initialQuestions={initialData.questions}
-        initialExamSettings={{
-          title: initialData.title,
-          description: initialData.description || '',
-          settings: initialData.settings,
-          schedule: initialData.schedule,
-          access: initialData.access
-        }}
-        mode="edit"
-        initialPdfUrl={initialData.originalFiles?.questionPaper?.url}
+      <QuestionEditor 
+        questions={questions} 
+        onQuestionsUpdate={setQuestions}
+        pdfUrl={pdfUrl}
       />
     </div>
   )

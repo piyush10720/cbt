@@ -128,7 +128,16 @@ const examSchema = new mongoose.Schema({
     requireApproval: {
       type: Boolean,
       default: false
-    }
+    },
+    inviteCode: {
+      type: String,
+      sparse: true
+    },
+    inviteLink: {
+      type: String,
+      sparse: true
+    },
+    inviteLinkExpiry: Date
   },
   status: {
     type: String,
@@ -237,11 +246,13 @@ examSchema.methods.canUserAccess = function(userId) {
     return true;
   }
 
-  if (this.access.type === 'private') {
+  // Owner/Private: Only creator has access
+  if (this.access.type === 'owner' || this.access.type === 'private') {
     return creatorId === requestedId;
   }
 
-  if (this.access.type === 'restricted') {
+  // Invited/Restricted: Creator + Allowed Users
+  if (this.access.type === 'invited' || this.access.type === 'restricted') {
     if (creatorId === requestedId) {
       return true;
     }

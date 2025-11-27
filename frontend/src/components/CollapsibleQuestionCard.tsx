@@ -1,6 +1,5 @@
 import React, { useState, useMemo, memo } from 'react'
 import { Question } from '@/lib/api'
-// @ts-ignore - imageUploadAPI export exists but TypeScript cache hasn't updated
 import { imageUploadAPI } from '@/lib/api'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -74,6 +73,9 @@ const CollapsibleQuestionCard: React.FC<CollapsibleQuestionCardProps> = memo(({
   const [uploadingDiagram, setUploadingDiagram] = useState(false)
   const [uploadingOptionDiagram, setUploadingOptionDiagram] = useState<number | null>(null)
 
+  const [isTagsVisible, setIsTagsVisible] = useState(false)
+  const [editingLabelIndex, setEditingLabelIndex] = useState<number | null>(null)
+
   const isComplete = question.text.trim().length > 0 && question.correct && question.correct.length > 0
   const hasErrors = validationErrors.length > 0
   
@@ -84,16 +86,58 @@ const CollapsibleQuestionCard: React.FC<CollapsibleQuestionCardProps> = memo(({
 
   const handleOptionChange = (optionIndex: number, value: string) => {
     const options = [...question.options]
-    const previousValue = options[optionIndex]
-    options[optionIndex] = value
+    const currentOption = options[optionIndex]
+    
+    // Preserve existing object structure if it exists
+    if (typeof currentOption === 'object' && currentOption !== null) {
+      options[optionIndex] = { ...currentOption, text: value }
+    } else {
+      // If it was a string, we can keep it as a string OR convert to object
+      // Let's keep as string for simplicity unless we need label/diagram
+      options[optionIndex] = value
+    }
 
+    // Note: Changing text doesn't affect correct answer matching if matching is done by label
+    // But if matching is done by value (for string options), we need to update correct array
+    
+    // If option is a string, its value IS its identifier.
+    // If option is object, its identifier is its label.
+    
+    if (typeof currentOption === 'string') {
+      const previousValue = currentOption
+      let correct = (question.correct || []).map((answer) => {
+        if (previousValue && answer === previousValue) {
+          return value
+        }
+        return answer
+      })
+      onEdit(question.id, { options, correct: Array.from(new Set(correct)) })
+    } else {
+      // For object options, changing text doesn't change the label/identifier
+      onEdit(question.id, { options })
+    }
+  }
+
+  const handleOptionLabelChange = (optionIndex: number, newLabel: string) => {
+    const options = [...question.options]
+    const currentOption = options[optionIndex]
+    const oldLabel = getOptionLabel(currentOption)
+    
+    // Ensure option is an object
+    if (typeof currentOption === 'string') {
+      options[optionIndex] = { label: newLabel, text: currentOption }
+    } else {
+      options[optionIndex] = { ...currentOption, label: newLabel }
+    }
+    
+    // Update correct answers list if this option was selected
     let correct = (question.correct || []).map((answer) => {
-      if (previousValue && answer === previousValue) {
-        return value
+      if (answer === oldLabel) {
+        return newLabel
       }
       return answer
     })
-
+    
     onEdit(question.id, { options, correct: Array.from(new Set(correct)) })
   }
 
@@ -530,19 +574,28 @@ const CollapsibleQuestionCard: React.FC<CollapsibleQuestionCardProps> = memo(({
 
           {/* Tags */}
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">
-              Tags <span className="text-xs text-gray-500 font-normal">(comma separated)</span>
-            </label>
-            <Input
-              defaultValue={question.tags?.join(', ') || ''}
-              key={question.id + '-tags'} // Re-render when question changes
-              onBlur={(e) => {
-                const tags = e.target.value.split(',').map(t => t.trim()).filter(Boolean)
-                onEdit(question.id, { tags })
-              }}
-              placeholder="e.g. Algebra, 2023, Hard"
-              onClick={(e) => e.stopPropagation()}
-            />
+            <div 
+              className="flex items-center gap-2 cursor-pointer text-sm font-medium text-gray-700 select-none"
+              onClick={() => setIsTagsVisible(!isTagsVisible)}
+            >
+              {isTagsVisible ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+              <span>Tags</span>
+              <span className="text-xs text-gray-500 font-normal">(comma separated)</span>
+            </div>
+            
+            {isTagsVisible && (
+              <Input
+                defaultValue={question.tags?.join(', ') || ''}
+                key={question.id + '-tags'} // Re-render when question changes
+                onBlur={(e) => {
+                  const tags = e.target.value.split(',').map(t => t.trim()).filter(Boolean)
+                  onEdit(question.id, { tags })
+                }}
+                placeholder="e.g. Algebra, 2023, Hard"
+                onClick={(e) => e.stopPropagation()}
+                autoFocus
+              />
+            )}
           </div>
 
           {/* Question Type and Marks */}
@@ -659,13 +712,41 @@ const CollapsibleQuestionCard: React.FC<CollapsibleQuestionCardProps> = memo(({
                         )}
                         <div className="flex-1 space-y-2">
                           <div className="flex items-center gap-2">
-                            <Input
-                              value={optionText}
-                              onChange={(e) => handleOptionChange(idx, e.target.value)}
-                              placeholder={`Option ${optionLabel || idx + 1} (supports LaTeX)`}
-                              onClick={(e) => e.stopPropagation()}
-                              className="font-mono flex-1"
-                            />
+                            <div className="flex-1 flex flex-col gap-1">
+                                <div className="flex items-center gap-2">
+                                    <Input
+                                        value={optionText}
+                                        onChange={(e) => handleOptionChange(idx, e.target.value)}
+                                        placeholder={`Option ${optionLabel || idx + 1} (supports LaTeX)`}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="font-mono flex-1"
+                                    />
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-8 w-8 p-0"
+                                        onClick={(e) => {
+                                            e.stopPropagation()
+                                            setEditingLabelIndex(editingLabelIndex === idx ? null : idx)
+                                        }}
+                                        title="Edit Label"
+                                    >
+                                        {editingLabelIndex === idx ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                                    </Button>
+                                </div>
+                                {editingLabelIndex === idx && (
+                                    <div className="flex items-center gap-2 pl-1">
+                                        <span className="text-xs text-gray-500 w-12">Label:</span>
+                                        <Input
+                                            value={optionLabel}
+                                            onChange={(e) => handleOptionLabelChange(idx, e.target.value)}
+                                            placeholder="Label (e.g., A)"
+                                            className="h-7 text-xs w-24"
+                                            onClick={(e) => e.stopPropagation()}
+                                        />
+                                    </div>
+                                )}
+                            </div>
                             {/* Diagram Upload Button */}
                             {uploadingOptionDiagram === idx ? (
                               <Button 
@@ -790,11 +871,11 @@ const CollapsibleQuestionCard: React.FC<CollapsibleQuestionCardProps> = memo(({
                 value={question.correct && question.correct.length > 0 ? question.correct[0] : ''}
                 onChange={(e) => onEdit(question.id, { correct: [e.target.value] })}
                 onClick={(e) => e.stopPropagation()}
-                placeholder="Single value (e.g., 42.5) or range (e.g., 41.5-42.5)"
+                placeholder="Single value (e.g., -5) or range (e.g., 10 to 20, -5 to 5)"
               />
-              {question.correct && question.correct[0] && question.correct[0].includes('-') && (
+              {question.correct && question.correct[0] && question.correct[0].includes(' to ') && (
                 <p className="text-xs text-green-600 bg-green-50 p-2 rounded border border-green-200">
-                  Range answer: Any value between {question.correct[0].split('-')[0]} and {question.correct[0].split('-')[1]} will be accepted
+                  Range answer: Any value between {question.correct[0].split(' to ')[0]} and {question.correct[0].split(' to ')[1]} will be accepted
                 </p>
               )}
             </div>

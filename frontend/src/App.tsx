@@ -19,6 +19,8 @@ import BookmarksPage from '@/pages/BookmarksPage'
 import ProfilePage from '@/pages/ProfilePage'
 import JoinFolderPage from '@/pages/JoinFolderPage'
 import JoinFolderByLinkPage from '@/pages/JoinFolderByLinkPage'
+import FolderSettingsPage from '@/pages/FolderSettingsPage'
+import ExamSettingsPage from '@/pages/ExamSettingsPage'
 
 // Components
 import Layout from '@/components/Layout'
@@ -129,6 +131,14 @@ const AppRoutes: React.FC = () => {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="exams/:id/settings"
+          element={
+            <ProtectedRoute allowedRoles={['teacher', 'admin']}>
+              <ExamSettingsPage />
+            </ProtectedRoute>
+          }
+        />
         <Route path="exams/:id/take" element={<TakeExamPage />} />
         <Route path="results" element={<ResultsPage />} />
         <Route path="results/:id" element={<ResultDetailsPage />} />
@@ -136,6 +146,14 @@ const AppRoutes: React.FC = () => {
         <Route path="profile" element={<ProfilePage />} />
         <Route path="folders/join" element={<JoinFolderPage />} />
         <Route path="folders/join/:inviteLink" element={<JoinFolderByLinkPage />} />
+        <Route
+          path="folders/:folderId/settings"
+          element={
+            <ProtectedRoute allowedRoles={['teacher', 'admin']}>
+              <FolderSettingsPage />
+            </ProtectedRoute>
+          }
+        />
       </Route>
 
       {/* Catch all route */}

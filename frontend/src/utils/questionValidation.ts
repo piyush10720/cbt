@@ -92,20 +92,20 @@ export const validateQuestion = (question: Question, index: number): ValidationE
     } else {
       const answer = question.correct[0]
       // Check if it's a range
-      if (answer.includes('-')) {
-        const parts = answer.split('-')
+      if (answer.includes(' to ')) {
+        const parts = answer.split(' to ')
         if (parts.length === 2) {
           const min = parseFloat(parts[0])
           const max = parseFloat(parts[1])
           if (isNaN(min) || isNaN(max)) {
             errors.push({
               field: 'correct',
-              message: `Question ${index + 1}: Invalid numeric range format. Use min-max (e.g., 41.5-42.5)`
+              message: `Question ${index + 1}: Invalid numeric range format. Use min to max (e.g., 10 to 20)`
             })
-          } else if (min >= max) {
+          } else if (min > max) {
             errors.push({
               field: 'correct',
-              message: `Question ${index + 1}: Numeric range invalid - min must be less than max`
+              message: `Question ${index + 1}: Numeric range invalid - min must be less than or equal to max`
             })
           }
         }

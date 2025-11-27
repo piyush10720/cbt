@@ -1,6 +1,18 @@
 import React from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Switch } from '@/components/ui/switch'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Settings, Calendar, Lock, FileText } from 'lucide-react'
 
 interface ExamSettingsFormProps {
   examSettings: any
@@ -40,191 +52,268 @@ const ExamSettingsForm: React.FC<ExamSettingsFormProps> = ({
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Basic Information</CardTitle>
-          <CardDescription>Set exam title and description</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Exam Title *
-            </label>
-            <Input
-              value={examSettings.title}
-              onChange={(e) => handleInputChange('title', e.target.value)}
-              placeholder="Enter exam title"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Description
-            </label>
-            <textarea
-              value={examSettings.description}
-              onChange={(e) => handleInputChange('description', e.target.value)}
-              placeholder="Enter exam description"
-              className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            />
-          </div>
-        </CardContent>
-      </Card>
+      <Tabs defaultValue="general" className="w-full">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="general" className="flex items-center gap-2">
+            <FileText className="h-4 w-4" />
+            <span className="hidden sm:inline">General</span>
+          </TabsTrigger>
+          <TabsTrigger value="config" className="flex items-center gap-2">
+            <Settings className="h-4 w-4" />
+            <span className="hidden sm:inline">Configuration</span>
+          </TabsTrigger>
+          <TabsTrigger value="schedule" className="flex items-center gap-2">
+            <Calendar className="h-4 w-4" />
+            <span className="hidden sm:inline">Schedule</span>
+          </TabsTrigger>
+          <TabsTrigger value="access" className="flex items-center gap-2">
+            <Lock className="h-4 w-4" />
+            <span className="hidden sm:inline">Access</span>
+          </TabsTrigger>
+        </TabsList>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Exam Settings</CardTitle>
-          <CardDescription>Configure exam parameters</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Duration (minutes) *
-            </label>
-            <Input
-              type="number"
-              value={examSettings.settings.duration}
-              onChange={(e) => handleSettingsChange('duration', parseInt(e.target.value))}
-              min="1"
-            />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  checked={examSettings.settings.randomizeQuestions}
-                  onChange={(e) => handleSettingsChange('randomizeQuestions', e.target.checked)}
+        {/* General Tab */}
+        <TabsContent value="general" className="space-y-4 mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Basic Information</CardTitle>
+              <CardDescription>Set exam title and description</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="title">Exam Title *</Label>
+                <Input
+                  id="title"
+                  value={examSettings.title}
+                  onChange={(e) => handleInputChange('title', e.target.value)}
+                  placeholder="Enter exam title"
                 />
-                <span className="text-sm">Randomize Questions</span>
-              </label>
-            </div>
-            <div>
-              <label className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  checked={examSettings.settings.showResultImmediately}
-                  onChange={(e) => handleSettingsChange('showResultImmediately', e.target.checked)}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="description">Description</Label>
+                <Textarea
+                  id="description"
+                  value={examSettings.description}
+                  onChange={(e) => handleInputChange('description', e.target.value)}
+                  placeholder="Enter exam description"
+                  className="min-h-[100px]"
                 />
-                <span className="text-sm">Show Result Immediately</span>
-              </label>
-            </div>
-            <div>
-              <label className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  checked={examSettings.settings.preventTabSwitch}
-                  onChange={(e) => handleSettingsChange('preventTabSwitch', e.target.checked)}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Configuration Tab */}
+        <TabsContent value="config" className="space-y-4 mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Exam Configuration</CardTitle>
+              <CardDescription>Configure duration, marks, and behavior</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="duration">Duration (minutes) *</Label>
+                  <Input
+                    id="duration"
+                    type="number"
+                    value={examSettings.settings.duration}
+                    onChange={(e) => handleSettingsChange('duration', parseInt(e.target.value) || 0)}
+                    min="1"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="passingMarks">Passing Marks</Label>
+                  <Input
+                    id="passingMarks"
+                    type="number"
+                    value={examSettings.settings.passingMarks || ''}
+                    onChange={(e) => handleSettingsChange('passingMarks', parseInt(e.target.value) || 0)}
+                    min="0"
+                    placeholder="Optional"
+                  />
+                </div>
+                 <div className="space-y-2">
+                  <Label htmlFor="maxAttempts">Maximum Attempts</Label>
+                  <Input
+                    id="maxAttempts"
+                    type="number"
+                    min="1"
+                    value={examSettings.settings.maxAttempts}
+                    onChange={(e) => handleSettingsChange('maxAttempts', parseInt(e.target.value) || 1)}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
+                <div className="flex items-center justify-between space-x-2">
+                  <Label htmlFor="randomizeQuestions" className="flex-1">Randomize Questions</Label>
+                  <Switch
+                    id="randomizeQuestions"
+                    checked={examSettings.settings.randomizeQuestions}
+                    onCheckedChange={(checked) => handleSettingsChange('randomizeQuestions', checked)}
+                  />
+                </div>
+                <div className="flex items-center justify-between space-x-2">
+                  <Label htmlFor="randomizeOptions" className="flex-1">Randomize Options</Label>
+                  <Switch
+                    id="randomizeOptions"
+                    checked={examSettings.settings.randomizeOptions}
+                    onCheckedChange={(checked) => handleSettingsChange('randomizeOptions', checked)}
+                  />
+                </div>
+                <div className="flex items-center justify-between space-x-2">
+                  <Label htmlFor="showResultImmediately" className="flex-1">Show Result Immediately</Label>
+                  <Switch
+                    id="showResultImmediately"
+                    checked={examSettings.settings.showResultImmediately}
+                    onCheckedChange={(checked) => handleSettingsChange('showResultImmediately', checked)}
+                  />
+                </div>
+                <div className="flex items-center justify-between space-x-2">
+                  <Label htmlFor="preventTabSwitch" className="flex-1">Prevent Tab Switch</Label>
+                  <Switch
+                    id="preventTabSwitch"
+                    checked={examSettings.settings.preventTabSwitch}
+                    onCheckedChange={(checked) => handleSettingsChange('preventTabSwitch', checked)}
+                  />
+                </div>
+                <div className="flex items-center justify-between space-x-2">
+                  <Label htmlFor="allowCalculator" className="flex-1">Allow Calculator</Label>
+                  <Switch
+                    id="allowCalculator"
+                    checked={examSettings.settings.allowCalculator}
+                    onCheckedChange={(checked) => handleSettingsChange('allowCalculator', checked)}
+                  />
+                </div>
+                <div className="flex items-center justify-between space-x-2">
+                  <Label htmlFor="negativeMarking" className="flex-1">Negative Marking</Label>
+                  <Switch
+                    id="negativeMarking"
+                    checked={examSettings.settings.negativeMarking}
+                    onCheckedChange={(checked) => handleSettingsChange('negativeMarking', checked)}
+                  />
+                </div>
+                <div className="flex items-center justify-between space-x-2">
+                  <Label htmlFor="allowReview" className="flex-1">Allow Review</Label>
+                  <Switch
+                    id="allowReview"
+                    checked={examSettings.settings.allowReview}
+                    onCheckedChange={(checked) => handleSettingsChange('allowReview', checked)}
+                  />
+                </div>
+                <div className="flex items-center justify-between space-x-2">
+                   <div className="flex flex-col">
+                      <Label htmlFor="webcamMonitoring">Webcam Monitoring</Label>
+                      <span className="text-[10px] text-blue-600 font-medium">Coming Soon</span>
+                   </div>
+                  <Switch
+                    id="webcamMonitoring"
+                    checked={examSettings.settings.webcamMonitoring}
+                    onCheckedChange={(checked) => handleSettingsChange('webcamMonitoring', checked)}
+                    disabled
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Schedule Tab */}
+        <TabsContent value="schedule" className="space-y-4 mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Schedule</CardTitle>
+              <CardDescription>Set exam start and end dates</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="startDate">Start Date & Time *</Label>
+                  <Input
+                    id="startDate"
+                    type="datetime-local"
+                    value={examSettings.schedule.startDate}
+                    onChange={(e) => handleInputChange('schedule', {
+                      ...examSettings.schedule,
+                      startDate: e.target.value
+                    })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="endDate">End Date & Time *</Label>
+                  <Input
+                    id="endDate"
+                    type="datetime-local"
+                    value={examSettings.schedule.endDate}
+                    onChange={(e) => handleInputChange('schedule', {
+                      ...examSettings.schedule,
+                      endDate: e.target.value
+                    })}
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Access Tab */}
+        <TabsContent value="access" className="space-y-4 mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Access Control</CardTitle>
+              <CardDescription>Control who can attempt this exam</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="accessType">Access Type</Label>
+                <Select
+                  value={examSettings.access?.type || 'private'}
+                  onValueChange={(value) => handleAccessChange('type', value)}
+                >
+                  <SelectTrigger id="accessType">
+                    <SelectValue placeholder="Select access type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="private">Private (Only Creator)</SelectItem>
+                    <SelectItem value="public">Public (Any Logged-in User)</SelectItem>
+                    <SelectItem value="restricted">Restricted (Invite Only)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center justify-between space-x-2 pt-4 border-t">
+                <div className="space-y-0.5">
+                  <Label htmlFor="requireApproval">Require Approval</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Require manual approval before participation
+                  </p>
+                </div>
+                <Switch
+                  id="requireApproval"
+                  checked={examSettings.access?.requireApproval || false}
+                  onCheckedChange={(checked) => handleAccessChange('requireApproval', checked)}
                 />
-                <span className="text-sm">Prevent Tab Switch</span>
-              </label>
-            </div>
-            <div>
-              <label className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  checked={examSettings.settings.allowCalculator}
-                  onChange={(e) => handleSettingsChange('allowCalculator', e.target.checked)}
-                />
-                <span className="text-sm">Allow Calculator</span>
-              </label>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Maximum Attempts
-              </label>
-              <Input
-                type="number"
-                min="1"
-                value={examSettings.settings.maxAttempts}
-                onChange={(e) => handleSettingsChange('maxAttempts', parseInt(e.target.value) || 1)}
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+              </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Schedule</CardTitle>
-          <CardDescription>Set exam start and end dates</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Start Date & Time *
-              </label>
-              <Input
-                type="datetime-local"
-                value={examSettings.schedule.startDate}
-                onChange={(e) => handleInputChange('schedule', {
-                  ...examSettings.schedule,
-                  startDate: e.target.value
-                })}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                End Date & Time *
-              </label>
-              <Input
-                type="datetime-local"
-                value={examSettings.schedule.endDate}
-                onChange={(e) => handleInputChange('schedule', {
-                  ...examSettings.schedule,
-                  endDate: e.target.value
-                })}
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Access</CardTitle>
-          <CardDescription>Control who can attempt this exam</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Access Type
-            </label>
-            <select
-              value={examSettings.access?.type || 'private'}
-              onChange={(e) => handleAccessChange('type', e.target.value)}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <option value="private">Private (only creator)</option>
-              <option value="public">Public (any logged-in user)</option>
-              <option value="restricted">Restricted (invite only)</option>
-            </select>
-          </div>
-
-          <div className="space-y-2">
-            <label className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                checked={examSettings.access?.requireApproval || false}
-                onChange={(e) => handleAccessChange('requireApproval', e.target.checked)}
-              />
-              <span className="text-sm">Require manual approval before participation</span>
-            </label>
-          </div>
-
-          {examSettings.access?.type === 'restricted' && (
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">Access Code (optional)</label>
-              <Input
-                value={examSettings.access?.accessCode || ''}
-                onChange={(e) => handleAccessChange('accessCode', e.target.value)}
-                placeholder="Provide a code participants must enter"
-              />
-              <p className="text-xs text-gray-500">You can manage allowed users after creating the exam.</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              {examSettings.access?.type === 'restricted' && (
+                <div className="space-y-2 pt-4 border-t">
+                  <Label htmlFor="accessCode">Access Code (Optional)</Label>
+                  <Input
+                    id="accessCode"
+                    value={examSettings.access?.accessCode || ''}
+                    onChange={(e) => handleAccessChange('accessCode', e.target.value)}
+                    placeholder="Provide a code participants must enter"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    You can manage allowed users after creating the exam.
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

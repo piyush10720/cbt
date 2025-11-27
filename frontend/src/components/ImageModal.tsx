@@ -31,24 +31,25 @@ const ImageModal: React.FC<ImageModalProps> = ({ src, alt, isOpen, onClose }) =>
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
       onClick={onClose}
     >
-      <div className="relative max-h-[90vh] max-w-[90vw]" onClick={(e) => e.stopPropagation()}>
+      <div className="relative w-full h-full max-w-[95vw] max-h-[95vh] flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
         <button
           onClick={onClose}
-          className="absolute -top-10 right-0 text-white hover:text-gray-300 transition-colors"
+          className="absolute top-4 right-4 z-50 p-2 bg-black/50 rounded-full text-white hover:bg-black/70 transition-colors"
           aria-label="Close modal"
         >
           <X className="h-8 w-8" />
         </button>
-        <img
-          src={src}
-          alt={alt}
-          className="max-h-[85vh] max-w-full h-auto rounded-lg shadow-2xl"
-          style={{ objectFit: 'contain' }}
-        />
-        <p className="text-white text-center mt-2 text-sm">{alt}</p>
+        <div className="flex flex-col items-center justify-center w-full h-full p-4">
+          <img
+            src={src}
+            alt={alt}
+            className="w-full h-full object-contain rounded-lg shadow-2xl"
+          />
+          {alt && <p className="absolute bottom-8 text-white/90 text-center text-base font-medium bg-black/50 px-4 py-2 rounded-full backdrop-blur-sm">{alt}</p>}
+        </div>
       </div>
     </div>
   )

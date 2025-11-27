@@ -7,6 +7,7 @@ router.use(authenticate); // Protect all folder routes
 
 router.post('/', folderController.createFolder);
 router.get('/', folderController.getFolders);
+router.get('/:id', folderController.getFolder);
 router.put('/:id', folderController.updateFolder);
 router.delete('/:id', folderController.deleteFolder);
 router.post('/add-exam', folderController.addExamToFolder);
