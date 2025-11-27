@@ -80,11 +80,9 @@ describe('ImageCropper', () => {
       const results = await imageCropper.testLibraries();
 
       expect(results).toHaveProperty('sharp');
-      expect(results).toHaveProperty('jimp');
       
-      // At least one library should be working
-      const hasWorkingLibrary = results.sharp || results.jimp;
-      expect(hasWorkingLibrary).toBe(true);
+      // Sharp should be working
+      expect(results.sharp).toBe(true);
       
       console.log('Library test results:', results);
     }, 10000);
@@ -113,11 +111,10 @@ describe('ImageCropper', () => {
       }).rejects.toThrow('Image buffer and bounding box are required');
     });
 
-    test('should handle Sharp and Jimp API correctly', () => {
+    test('should handle Sharp API correctly', () => {
       // Verify the API methods exist and are callable
       expect(typeof imageCropper.cropImage).toBe('function');
       expect(typeof imageCropper.cropImageWithSharp).toBe('function');
-      expect(typeof imageCropper.cropImageWithJimp).toBe('function');
       expect(typeof imageCropper.normalizeBoundingBox).toBe('function');
     });
   });
@@ -160,17 +157,13 @@ describe('ImageCropper', () => {
       }).not.toThrow();
     });
 
-    test('should have at least one cropping library available', async () => {
+    test('should have Sharp available', async () => {
       const results = await imageCropper.testLibraries();
-      const hasWorkingLibrary = results.sharp || results.jimp;
       
-      expect(hasWorkingLibrary).toBe(true);
+      expect(results.sharp).toBe(true);
       
       if (results.sharp) {
         console.log('✅ Sharp is available (primary)');
-      }
-      if (results.jimp) {
-        console.log('✅ Jimp is available (fallback)');
       }
     }, 10000);
   });

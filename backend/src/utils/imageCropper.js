@@ -1,18 +1,6 @@
 const sharp = require('sharp')
 
-// Handle different Jimp versions
-let Jimp;
-try {
-  const jimpModule = require('jimp');
-  // Jimp 1.x exports Jimp class directly, or on .Jimp property
-  Jimp = jimpModule.Jimp || jimpModule.default || jimpModule;
-  if (!Jimp || !Jimp.read) {
-    throw new Error('Jimp read method not available');
-  }
-} catch (error) {
-  console.error('⚠️ Failed to load Jimp:', error.message);
-  Jimp = null;
-}
+
 
 // Handle different pdf-to-png module formats
 let pdfToPng;
@@ -70,7 +58,7 @@ class NodeCanvasFactory {
  */
 class ImageCropper {
   constructor() {
-    this.preferredLibrary = 'sharp'
+    // No preferred library needed as we only use Sharp
   }
 
   /**
@@ -250,64 +238,7 @@ class ImageCropper {
     }
   }
 
-  /**
-   * Crop image using Jimp (fallback method)
-   * @param {Buffer} imageBuffer - Source image buffer
-   * @param {Object} boundingBox - Bounding box {x, y, width, height}
-   * @returns {Promise<Buffer>} - Cropped image buffer
-   */
-  async cropImageWithJimp(imageBuffer, boundingBox) {
-    try {
-      if (!Jimp) {
-        throw new Error('Jimp is not available');
-      }
 
-      const image = await Jimp.read(imageBuffer);
-      
-      const normalizedBox = this.normalizeBoundingBox(
-        boundingBox,
-        image.bitmap.width,
-        image.bitmap.height
-      )
-
-      console.log(`   ✂️  Cropping with Jimp (fallback): ${normalizedBox.width}x${normalizedBox.height} at (${normalizedBox.x}, ${normalizedBox.y})`)
-
-      // Crop the image (modifies image in place)
-      image.crop(
-        normalizedBox.x,
-        normalizedBox.y,
-        normalizedBox.width,
-        normalizedBox.height
-      )
-
-      // Get buffer - handle both sync and async methods
-      let buffer;
-      try {
-        // Try async method first (Jimp 1.x)
-        if (image.getBufferAsync) {
-          buffer = await image.getBufferAsync(Jimp.MIME_PNG);
-        } else if (image.getBuffer) {
-          // Fallback to callback method (Jimp 0.x)
-          buffer = await new Promise((resolve, reject) => {
-            image.getBuffer(Jimp.MIME_PNG, (err, buf) => {
-              if (err) reject(err);
-              else resolve(buf);
-            });
-          });
-        } else {
-          throw new Error('No buffer method available');
-        }
-      } catch (bufferError) {
-        // Last resort: try to get raw bitmap data
-        throw new Error(`Failed to get buffer: ${bufferError.message}`);
-      }
-      
-      return buffer;
-    } catch (error) {
-      console.error('   ⚠️  Jimp cropping failed:', error.message)
-      throw error
-    }
-  }
 
   /**
    * Crop image with automatic fallback
@@ -320,28 +251,13 @@ class ImageCropper {
       throw new Error('Image buffer and bounding box are required')
     }
 
-    // Try primary library (Sharp)
+    // Use Sharp
     try {
-      if (this.preferredLibrary === 'sharp') {
-        return await this.cropImageWithSharp(imageBuffer, boundingBox)
-      }
+      return await this.cropImageWithSharp(imageBuffer, boundingBox)
     } catch (sharpError) {
-      console.warn('   ⚠️  Sharp failed, trying Jimp fallback...', sharpError.message)
+      console.error('   ❌ Sharp cropping failed:', sharpError.message)
+      throw sharpError
     }
-
-    // Fallback to Jimp
-    if (Jimp) {
-      try {
-        const result = await this.cropImageWithJimp(imageBuffer, boundingBox)
-        this.preferredLibrary = 'jimp' // Use Jimp for subsequent operations
-        return result
-      } catch (jimpError) {
-        console.error('   ❌ Jimp also failed:', jimpError.message)
-      }
-    }
-
-    // If both failed
-    throw new Error('Image cropping failed: Both Sharp and Jimp unavailable or failed')
   }
 
   /**
@@ -394,22 +310,8 @@ class ImageCropper {
       console.warn('⚠️  Sharp test failed:', error.message)
     }
 
-    // Test Jimp
-    try {
-      if (Jimp) {
-        const testBuffer = Buffer.from(
-          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
-          'base64'
-        )
-        await Jimp.read(testBuffer)
-        results.jimp = true
-        console.log('✅ Jimp is working')
-      } else {
-        console.warn('⚠️  Jimp not loaded')
-      }
-    } catch (error) {
-      console.warn('⚠️  Jimp test failed:', error.message)
-    }
+    // Test Jimp (Removed)
+    results.jimp = false // Jimp is removed
 
     return results
   }
