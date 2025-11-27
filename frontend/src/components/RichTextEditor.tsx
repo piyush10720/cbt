@@ -28,7 +28,7 @@ interface RichTextEditorProps {
 const RichTextEditor: React.FC<RichTextEditorProps> = ({
   content,
   onChange,
-  placeholder = 'Enter text...',
+  placeholder: _placeholder = 'Enter text...',
   minHeight = '120px'
 }) => {
   const editor = useEditor({

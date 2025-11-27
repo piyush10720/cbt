@@ -43,9 +43,9 @@ export const autoFixLatex = (text: string): string => {
     // Greek letters (be careful with actual words)
     // Only fix if they're likely LaTeX (inside $ or followed by specific patterns)
     .replace(/\$([^$]*[^\\])(alpha|beta|gamma|delta|epsilon|zeta|eta|theta|iota|kappa|lambda|mu|nu|xi|pi|rho|sigma|tau|upsilon|phi|chi|psi|omega)([^a-z]|$)/gi, 
-      (match, before, letter, after) => `$${before}\\${letter}${after}`)
+      (_match, before, letter, after) => `$${before}\\${letter}${after}`)
     .replace(/\$([^$]*[^\\])(Alpha|Beta|Gamma|Delta|Epsilon|Zeta|Eta|Theta|Iota|Kappa|Lambda|Mu|Nu|Xi|Pi|Rho|Sigma|Tau|Upsilon|Phi|Chi|Psi|Omega)([^a-z]|$)/g,
-      (match, before, letter, after) => `$${before}\\${letter}${after}`)
+      (_match, before, letter, after) => `$${before}\\${letter}${after}`)
 }
 
 /**

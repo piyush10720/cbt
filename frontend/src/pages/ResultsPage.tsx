@@ -2,12 +2,12 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from 'react-query'
 import { resultAPI, Result } from '@/lib/api'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import { formatDate, formatRelativeTime, getGradeFromPercentage, getPerformanceColor } from '@/lib/utils'
-import Breadcrumbs from '@/components/Breadcrumbs'
+// Breadcrumbs not used in this component
 import { 
   AlertCircle, 
   Award, 
@@ -16,8 +16,7 @@ import {
   Filter, 
   Search, 
   Trophy, 
-  Target, 
-  TrendingUp,
+  Target,
   Calendar,
   ArrowRight,
   CheckCircle2,

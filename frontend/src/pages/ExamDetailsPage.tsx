@@ -46,7 +46,7 @@ import QuestionCard from '@/components/QuestionCard'
 const ExamDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { user, isTeacher } = useAuth()
+  const { user, isTeacher: _isTeacher } = useAuth()
   const queryClient = useQueryClient()
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [activeTab, setActiveTab] = useState('overview')

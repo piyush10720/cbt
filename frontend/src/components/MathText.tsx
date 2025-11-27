@@ -67,7 +67,6 @@ const MathText: React.FC<MathTextProps> = ({ text, className = '', block = false
     content = preprocessText(content)
     // Replace display math ($$...$$) first - must match multiline
     const displayMathRegex = /\$\$([\s\S]*?)\$\$/g
-    const inlineMathRegex = /\$([^\$\n]+?)\$/g
 
     // Split by display math first
     const parts: React.ReactNode[] = []

@@ -64,13 +64,12 @@ type SubmitAnswerPayload = {
   isMarkedForReview?: boolean
 }
 
-const ENTER_FULLSCREEN_MESSAGE = 'Exam requires fullscreen. Switching tabs or exiting fullscreen will submit your attempt.'
 const FULLSCREEN_CHANGE_EVENTS: string[] = ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'msfullscreenchange']
 
 const TakeExamPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { } = useAuth() // Auth context available if needed
   const [currentIndex, setCurrentIndex] = useState(0)
   const [answers, setAnswers] = useState<Record<string, any>>({})
   const [markedForReview, setMarkedForReview] = useState<Record<string, boolean>>({})
@@ -95,7 +94,21 @@ const TakeExamPage: React.FC = () => {
         throw new Error('Missing exam identifier')
       }
       const response = await examAPI.startExam(id)
-      return response.data as StartExamResponse
+      // Ensure the response matches StartExamResponse type
+      const data = response.data as any
+      return {
+        message: data.message || 'Exam started',
+        data: {
+          ...data.data,
+          exam: {
+            ...data.data.exam,
+            settings: {
+              ...data.data.exam.settings,
+              allowCalculator: data.data.exam.settings.allowCalculator ?? false
+            }
+          }
+        }
+      } as StartExamResponse
     },
     {
       enabled: !!id,

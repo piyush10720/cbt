@@ -280,7 +280,7 @@ const PDFViewer: React.FC<PDFViewerProps> = (props) => {
                 </div>
               }
             >
-              {displayPages.map((pageNum, idx) => {
+              {displayPages.map((pageNum, _idx) => {
                 const isFocusPage = focusPage === pageNum
                 // Only render valid page numbers
                 if (pageNum < 1 || (numPages > 0 && pageNum > numPages)) {
@@ -395,5 +395,4 @@ const PDFViewer: React.FC<PDFViewerProps> = (props) => {
 }
 
 export default PDFViewer
-export type { PDFViewerProps }
 

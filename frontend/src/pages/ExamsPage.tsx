@@ -73,8 +73,8 @@ const ExamsPage: React.FC = () => {
   const [newFolderVisibility, setNewFolderVisibility] = useState<'owner' | 'invited' | 'public'>('owner')
   const [newFolderDescription, setNewFolderDescription] = useState('')
   
-  const [isMergeModalOpen, setIsMergeModalOpen] = useState(false)
-  const [mergeConfig, setMergeConfig] = useState({
+  const [_isMergeModalOpen, setIsMergeModalOpen] = useState(false)
+  const [_mergeConfig, _setMergeConfig] = useState({
     title: '',
     description: '',
     settings: {
@@ -208,33 +208,6 @@ const ExamsPage: React.FC = () => {
     }
   )
 
-  const mergeExamsMutation = useMutation(
-    async () => {
-      await examAPI.mergeExams({
-        examIds: Array.from(selectedExamIds),
-        title: mergeConfig.title,
-        description: mergeConfig.description,
-        settings: {
-          ...mergeConfig.settings,
-          totalMarks: 0 // Backend calculates this
-        },
-        schedule: mergeConfig.schedule,
-        access: mergeConfig.access
-      })
-    },
-    {
-      onSuccess: () => {
-        toast.success('Exams merged successfully')
-        setIsMergeModalOpen(false)
-        setSelectedExamIds(new Set())
-        setSelectedExamsDetails([])
-        queryClient.invalidateQueries(['exams'])
-      },
-      onError: (error: any) => {
-        toast.error(error.response?.data?.message || 'Failed to merge exams')
-      }
-    }
-  )
 
   const publishExamMutation = useMutation(
     async (id: string) => {

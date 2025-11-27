@@ -33,7 +33,7 @@ const VirtualList = React.lazy<React.ComponentType<any>>(async () => {
     } catch (e2) {
       console.error('All react-window imports failed', e2);
       // Return error component
-      const ErrorComponent = React.forwardRef((props: any, ref) => (
+      const ErrorComponent = React.forwardRef((_props: any, ref) => (
         <div ref={ref as any} className="p-4 text-red-500 border border-red-300 rounded bg-red-50">
           Failed to load react-window. Please check internet connection.
         </div>
@@ -52,7 +52,7 @@ const VirtualList = React.lazy<React.ComponentType<any>>(async () => {
     
   if (!Component) {
     console.error('CRITICAL: Could not find VariableSizeList in module', module);
-    const ErrorComponent = React.forwardRef((props: any, ref) => (
+    const ErrorComponent = React.forwardRef((_props: any, ref) => (
       <div ref={ref as any} className="p-4 text-red-500 border border-red-300 rounded bg-red-50">
         Error: react-window module is empty or invalid.
       </div>

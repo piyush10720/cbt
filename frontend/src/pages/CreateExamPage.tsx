@@ -1,18 +1,15 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation } from 'react-query'
-import { examAPI, uploadAPI, Question } from '@/lib/api'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { examAPI, Question } from '@/lib/api'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import LoadingSpinner from '@/components/LoadingSpinner'
 import ExamWizard from '@/components/ExamWizard'
 import { ArrowLeft } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const CreateExamPage: React.FC = () => {
   const navigate = useNavigate()
-  const [examData, setExamData] = useState<{
+  const [_examData, setExamData] = useState<{
     title: string
     description: string
     settings: any

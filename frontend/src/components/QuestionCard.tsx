@@ -3,7 +3,6 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Separator } from '@/components/ui/separator'
 import MathText from '@/components/MathText'
 import ImageWithModal from '@/components/ImageWithModal'
 import { 
@@ -21,7 +20,6 @@ import {
   AlertCircle,
   Lightbulb
 } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { getOptionLabel, getOptionText, getOptionDiagramUrl } from '@/utils/questionHelpers'

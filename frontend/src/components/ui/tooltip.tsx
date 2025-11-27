@@ -10,7 +10,7 @@ export const TooltipProvider = ({ children }: { children: React.ReactNode }) => 
 
 export const Tooltip = ({ children, delayDuration = 200 }: { children: React.ReactNode, delayDuration?: number }) => {
   const [isVisible, setIsVisible] = useState(false)
-  const [timeoutId, setTimeoutId] = useState<NodeJS.Timeout | null>(null)
+  const [timeoutId, setTimeoutId] = useState<number | null>(null)
 
   const show = () => {
     const id = setTimeout(() => setIsVisible(true), delayDuration)
@@ -31,7 +31,7 @@ export const Tooltip = ({ children, delayDuration = 200 }: { children: React.Rea
   )
 }
 
-export const TooltipTrigger = ({ children, asChild }: { children: React.ReactNode, asChild?: boolean }) => {
+export const TooltipTrigger = ({ children, asChild: _asChild }: { children: React.ReactNode, asChild?: boolean }) => {
   return <>{children}</>
 }
 

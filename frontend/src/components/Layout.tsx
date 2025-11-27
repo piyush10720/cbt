@@ -12,7 +12,6 @@ import {
 } from '@/components/ui/dropdown-menu'
 import {
   BookOpen,
-  FileText,
   BarChart3,
   User,
   LogOut,

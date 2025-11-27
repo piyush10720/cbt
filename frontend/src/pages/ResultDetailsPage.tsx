@@ -6,34 +6,16 @@ import { useAuth } from '@/contexts/AuthContext'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import LoadingSpinner from '@/components/LoadingSpinner'
-import {  formatDate, getGradeFromPercentage, getPerformanceColor } from '@/lib/utils'
-import { 
+import { formatDate, getGradeFromPercentage } from '@/lib/utils'
+import {  
   AlertCircle, 
-  AlertTriangle, 
   ArrowLeft, 
-  Award, 
-  BarChart3, 
   CheckCircle2, 
   CircleSlash, 
-  Clock, 
-  Flag, 
-  Lightbulb, 
-  Bookmark, 
-  BookmarkCheck, 
-  XCircle, 
-  Edit2, 
-  Save, 
-  X, 
-  Plus, 
-  Minus,
-  Calendar,
-  Timer,
-  Target
+  XCircle,
+  Calendar
 } from 'lucide-react'
-import { Input } from '@/components/ui/input'
 import toast from 'react-hot-toast'
-import { getOptionLabel, getOptionText, getOptionDiagramUrl } from '@/utils/questionHelpers'
-import MathText from '@/components/MathText'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import QuestionCard from '@/components/QuestionCard'
@@ -183,9 +165,7 @@ const ResultDetailsPage: React.FC = () => {
     toggleBookmarkMutation.mutate({ questionId, resultId: id })
   }
 
-  // Manual Grading Logic
-  const [editingMarks, setEditingMarks] = useState<Record<string, boolean>>({})
-  const [marksInput, setMarksInput] = useState<Record<string, string>>({})
+  // Manual Grading Logic - state removed as we use QuestionCard's built-in UI
 
   const isExamOwner = useMemo(() => {
     if (!exam || !user) return false
@@ -202,7 +182,6 @@ const ResultDetailsPage: React.FC = () => {
       onSuccess: () => {
         toast.success('Marks updated')
         refetch()
-        setEditingMarks({})
       },
       onError: (err: any) => {
         toast.error(err?.response?.data?.message || 'Failed to update marks')
@@ -210,32 +189,7 @@ const ResultDetailsPage: React.FC = () => {
     }
   )
 
-  const startEditing = (questionId: string, currentMarks: number) => {
-    setEditingMarks(prev => ({ ...prev, [questionId]: true }))
-    setMarksInput(prev => ({ ...prev, [questionId]: String(currentMarks) }))
-  }
-
-  const cancelEditing = (questionId: string) => {
-    setEditingMarks(prev => {
-      const next = { ...prev }
-      delete next[questionId]
-      return next
-    })
-    setMarksInput(prev => {
-      const next = { ...prev }
-      delete next[questionId]
-      return next
-    })
-  }
-
-  const saveMarks = (questionId: string) => {
-    const marks = parseFloat(marksInput[questionId])
-    if (isNaN(marks)) {
-      toast.error('Please enter a valid number')
-      return
-    }
-    gradeMutation.mutate({ questionId, marks })
-  }
+  // Manual grading functions removed - using QuestionCard's built-in grading UI
 
   const hasUserAnswer = (answer: any) => {
     if (answer === null || answer === undefined) {
@@ -321,7 +275,7 @@ const ResultDetailsPage: React.FC = () => {
     )
   }
 
-  const performanceColor = getPerformanceColor(result.percentage)
+  // Performance color is calculated inline in the JSX
 
   return (
     <div className="min-h-screen bg-background pb-12">
