@@ -14,6 +14,7 @@ const bookmarkRoutes = require('./routes/bookmarks');
 const pdfProxyRoutes = require('./routes/pdf-proxy');
 const imageUploadRoutes = require('./routes/image-upload');
 const folderRoutes = require('./routes/folderRoutes');
+const { requestLogger, errorLogger } = require('./middleware/requestLogger');
 
 const app = express();
 
@@ -34,6 +35,9 @@ app.use(limiter);
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Request logging middleware
+app.use(requestLogger);
 
 // MongoDB connection
 const MONGO_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/cbt_platform';
@@ -87,6 +91,9 @@ app.get('/api/health', (req, res) => {
     environment: process.env.NODE_ENV || 'development'
   });
 });
+
+// Error logging middleware
+app.use(errorLogger);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
