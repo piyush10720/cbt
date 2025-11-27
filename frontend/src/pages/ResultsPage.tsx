@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import { formatDate, formatRelativeTime, getGradeFromPercentage, getPerformanceColor } from '@/lib/utils'
-// Breadcrumbs not used in this component
 import { 
   AlertCircle, 
   Award, 
