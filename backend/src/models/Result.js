@@ -59,8 +59,13 @@ const resultSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['started', 'in_progress', 'completed', 'submitted', 'auto_submitted', 'abandoned'],
+    enum: ['started', 'in_progress', 'completed', 'submitted', 'auto_submitted', 'abandoned', 'paused'],
     default: 'started'
+  },
+  mode: {
+    type: String,
+    enum: ['exam', 'practice'],
+    default: 'exam'
   },
   timing: {
     startedAt: {

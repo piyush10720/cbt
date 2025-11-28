@@ -29,6 +29,50 @@ const createExamValidation = [
     .withMessage('At least one question is required')
 ];
 
+const geminiCreator = require('../services/geminiCreator');
+
+// Generate questions using AI
+const generateQuestions = async (req, res) => {
+  try {
+    const { topic, subject, grade, count, type, difficulty, specificNeeds } = req.body;
+
+    // Basic validation
+    if (!topic || !subject || !grade) {
+      return res.status(400).json({
+        message: 'Topic, subject, and grade are required'
+      });
+    }
+
+    if (count < 1 || count > 50) {
+      return res.status(400).json({
+        message: 'Number of questions must be between 1 and 50'
+      });
+    }
+
+    const questions = await geminiCreator.generateQuestionsFromPrompt({
+      topic,
+      subject,
+      grade,
+      count,
+      type: type || 'mcq_single',
+      difficulty: difficulty || 50,
+      specificNeeds
+    });
+
+    res.json({
+      message: 'Questions generated successfully',
+      questions
+    });
+
+  } catch (error) {
+    console.error('Generate questions error:', error);
+    res.status(500).json({
+      message: 'Failed to generate questions',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
+  }
+};
+
 // Create new exam
 const createExam = async (req, res) => {
   try {
@@ -55,8 +99,13 @@ const createExam = async (req, res) => {
     // Create questions first
     const createdQuestions = [];
     for (const questionData of questions) {
+      // If question has an ID (e.g. from AI generation), use it, otherwise generate one
+      // We strip _id to let Mongo generate a new unique ObjectId
+      const { _id, ...qData } = questionData;
+      
       const question = new Question({
-        ...questionData,
+        ...qData,
+        id: qData.id || `q_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         createdBy: req.user.id
       });
       await question.save();
@@ -76,7 +125,6 @@ const createExam = async (req, res) => {
         ...settings,
         totalMarks
       },
-      schedule,
       schedule,
       access: access || { type: 'private' },
       originalFiles: req.body.originalFiles
@@ -582,13 +630,32 @@ const startExam = async (req, res) => {
     const activeAttempt = await Result.findOne({
       userId: req.user.id,
       examId: id,
-      status: { $in: ['started', 'in_progress'] }
+      status: { $in: ['started', 'in_progress', 'paused'] }
     });
 
     if (activeAttempt) {
       // Calculate time remaining
       const examDurationMs = exam.settings.duration * 60 * 1000;
-      const elapsedMs = Date.now() - activeAttempt.timing.startedAt.getTime();
+      
+      // If paused, we don't count the time since last activity against the duration
+      // The totalTimeSpent should have been updated when it was paused
+      let elapsedMs = 0;
+      
+      if (activeAttempt.status === 'paused') {
+        elapsedMs = (activeAttempt.timing.totalTimeSpent || 0) * 1000;
+        
+        // Resume the attempt: set startedAt to now so we can track new session time
+        activeAttempt.status = 'in_progress';
+        activeAttempt.timing.startedAt = new Date();
+        await activeAttempt.save();
+      } else {
+        // If not paused (e.g. browser crash or refresh), calculate elapsed from start
+        // Note: This logic assumes continuous running. If we want to support "implicit pause" on close, 
+        // we'd need heartbeats. For now, we assume standard behavior.
+        const currentSessionElapsed = Date.now() - activeAttempt.timing.startedAt.getTime();
+        elapsedMs = (activeAttempt.timing.totalTimeSpent || 0) * 1000 + currentSessionElapsed;
+      }
+
       const timeRemainingMs = Math.max(0, examDurationMs - elapsedMs);
       const timeRemainingSeconds = Math.floor(timeRemainingMs / 1000);
 
@@ -619,7 +686,8 @@ const startExam = async (req, res) => {
         tags: question.tags || [],
         tags: question.tags || [],
         diagram: question.diagram || null,
-        ...(mode === 'practice' && exam.settings.allowPracticeMode ? { correct: question.correct } : {})
+        diagram: question.diagram || null,
+        ...((activeAttempt.mode === 'practice' || (mode === 'practice' && !activeAttempt.mode)) && exam.settings.allowPracticeMode ? { correct: question.correct } : {})
       }));
 
       // Randomize questions if enabled (should match original order if possible, but for now we re-randomize or keep exam order)
@@ -650,7 +718,9 @@ const startExam = async (req, res) => {
             number: activeAttempt.attemptNumber,
             startedAt: activeAttempt.timing.startedAt,
             timeRemaining: timeRemainingSeconds,
-            answers: activeAttempt.answers // Include answers to restore state
+            timeRemaining: timeRemainingSeconds,
+            answers: activeAttempt.answers, // Include answers to restore state
+            mode: activeAttempt.mode || 'exam'
           }
         }
       });
@@ -671,7 +741,8 @@ const startExam = async (req, res) => {
         isMarkedForReview: false
       })),
       ipAddress: req.ip,
-      userAgent: req.get('User-Agent')
+      userAgent: req.get('User-Agent'),
+      mode: mode || 'exam'
     });
 
     await result.save();
@@ -709,7 +780,10 @@ const startExam = async (req, res) => {
         attempt: {
           number: result.attemptNumber,
           startedAt: result.timing.startedAt,
-          timeRemaining: exam.settings.duration * 60 // in seconds
+          number: result.attemptNumber,
+          startedAt: result.timing.startedAt,
+          timeRemaining: exam.settings.duration * 60, // in seconds
+          mode: result.mode
         }
       }
     });
@@ -720,6 +794,55 @@ const startExam = async (req, res) => {
       message: 'Failed to start exam',
       error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
     });
+  }
+};
+
+
+
+// Pause exam
+const pauseExam = async (req, res) => {
+  try {
+    const { id } = req.params; // examId
+    const userId = req.user.id;
+
+    console.log(`Pausing exam: examId=${id}, userId=${userId}`);
+
+    // Find the active result for this user and exam
+    const query = {
+      examId: id,
+      userId: userId,
+      status: { $in: ['started', 'in_progress'] }
+    };
+    console.log('Pause query:', JSON.stringify(query));
+
+    const result = await Result.findOne(query);
+
+    if (!result) {
+      console.log('Active result not found for query:', JSON.stringify(query));
+      // Check if any result exists for this user and exam, regardless of status
+      const anyResult = await Result.findOne({ examId: id, userId: userId });
+      console.log('Any result found?', anyResult ? `Yes, status=${anyResult.status}` : 'No');
+      
+      return res.status(404).json({ message: 'Active exam attempt not found' });
+    }
+
+    // Update status to paused
+    result.status = 'paused';
+    
+    // Calculate time spent in current session
+    const currentSessionStart = result.timing.startedAt;
+    if (currentSessionStart) {
+      const now = new Date();
+      const sessionDurationSeconds = (now - currentSessionStart) / 1000;
+      result.timing.totalTimeSpent = (result.timing.totalTimeSpent || 0) + sessionDurationSeconds;
+    }
+
+    await result.save();
+
+    res.json({ message: 'Exam paused successfully', resultId: result._id });
+  } catch (error) {
+    console.error('Pause exam error:', error);
+    res.status(500).json({ message: 'Failed to pause exam' });
   }
 };
 
@@ -981,6 +1104,7 @@ module.exports = {
   unpublishExam,
   deleteExam,
   startExam,
+  pauseExam,
   mergeExams,
   createExamValidation,
   generateInviteCode,
@@ -988,5 +1112,6 @@ module.exports = {
   generateInviteLink,
   revokeInviteLink,
   addUserToExam,
-  removeUserFromExam
+  removeUserFromExam,
+  generateQuestions
 };

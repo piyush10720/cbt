@@ -406,7 +406,9 @@ const getUserResults = async (req, res) => {
         status: result.status,
         timing: result.timing,
         analytics: result.analytics,
-        createdAt: result.createdAt
+        answers: result.answers,
+        createdAt: result.createdAt,
+        updatedAt: result.updatedAt
       })),
       pagination: {
         current: parseInt(page),

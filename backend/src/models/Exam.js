@@ -63,8 +63,8 @@ const examSchema = new mongoose.Schema({
       min: [0, 'Passing marks cannot be negative']
     },
     negativeMarking: {
-      type: Boolean,
-      default: false
+      type: Number,
+      default: 0
     },
     randomizeQuestions: {
       type: Boolean,
@@ -129,10 +129,6 @@ const examSchema = new mongoose.Schema({
       ref: 'User'
     }],
     accessCode: String,
-    requireApproval: {
-      type: Boolean,
-      default: false
-    },
     inviteCode: {
       type: String,
       sparse: true
