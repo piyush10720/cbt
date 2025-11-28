@@ -50,7 +50,7 @@ const CreateExamPage: React.FC = () => {
         </div>
         <h1 className="text-3xl font-bold text-foreground">Create New Exam</h1>
         <p className="text-muted-foreground mt-2">
-          Upload your question paper and answer key, or create questions manually
+          Upload your question paper and answer key, or create questions manually, or use AI to create questions based on your requirements
         </p>
       </div>
 

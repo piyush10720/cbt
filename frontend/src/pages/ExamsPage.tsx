@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from 'react-query'
-import { examAPI, folderAPI, Folder, Exam } from '@/lib/api'
+import { examAPI, folderAPI, resultAPI, Folder, Exam } from '@/lib/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -26,7 +26,8 @@ import {
   List as ListIcon,
   FolderOpen,
   Clock,
-  Users
+  Users,
+  Calendar
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import {
@@ -52,12 +53,15 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { Switch } from "@/components/ui/switch"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Textarea } from '@/components/ui/textarea'
 import { motion, AnimatePresence } from 'framer-motion'
 import SEO from '@/components/SEO'
 
 const ExamsPage: React.FC = () => {
   const navigate = useNavigate()
-  const { user, isTeacher } = useAuth()
+  const { user, isTeacher, isStudent } = useAuth()
   const queryClient = useQueryClient()
   
   // State
@@ -80,7 +84,7 @@ const ExamsPage: React.FC = () => {
     description: '',
     settings: {
       duration: 60,
-      negativeMarking: false,
+      negativeMarking: 0,
       randomizeQuestions: false,
       randomizeOptions: false,
       showResultImmediately: true,
@@ -96,8 +100,7 @@ const ExamsPage: React.FC = () => {
       timezone: 'UTC'
     },
     access: {
-      type: 'private',
-      requireApproval: false
+      type: 'owner',
     }
   })
   const [folderToDelete, setFolderToDelete] = useState<Folder | null>(null)
@@ -126,6 +129,13 @@ const ExamsPage: React.FC = () => {
       folderId: currentFolderId || 'all'
     }).then(res => res.data),
     { keepPreviousData: true }
+  )
+
+  // Fetch paused exams (for students)
+  const { data: pausedExamsData } = useQuery(
+    ['results', 'paused'],
+    () => resultAPI.getUserResults({ status: 'paused', limit: 3, sortBy: 'updatedAt', sortOrder: 'desc' }),
+    { enabled: isStudent && !currentFolderId } // Only show on root level
   )
 
   // Derived Data
@@ -209,6 +219,33 @@ const ExamsPage: React.FC = () => {
     }
   )
 
+  const mergeExamsMutation = useMutation(
+    async () => {
+      await examAPI.mergeExams({
+        examIds: Array.from(selectedExamIds),
+        title: _mergeConfig.title,
+        description: _mergeConfig.description,
+        settings: {
+          ..._mergeConfig.settings,
+          totalMarks: 0 // Backend calculates this
+        },
+        schedule: _mergeConfig.schedule,
+        access: _mergeConfig.access
+      })
+    },
+    {
+      onSuccess: () => {
+        toast.success('Exams merged successfully')
+        setIsMergeModalOpen(false)
+        setSelectedExamIds(new Set())
+        setSelectedExamsDetails([])
+        queryClient.invalidateQueries(['exams'])
+      },
+      onError: (error: any) => {
+        toast.error(error.response?.data?.message || 'Failed to merge exams')
+      }
+    }
+  )
 
   const publishExamMutation = useMutation(
     async (id: string) => {
@@ -287,21 +324,33 @@ const ExamsPage: React.FC = () => {
   const toggleExamSelection = (exam: Exam) => {
     const canMerge = exam.access.type === 'public' || (user && exam.createdBy.email === user.email)
     
-    if (!canMerge && !selectedExamIds.has(exam.id)) {
+    if (!canMerge && !selectedExamIds.has(exam.id) && !isStudent) {
       toast.error('You can only merge your own exams or public exams')
       return
     }
 
-    const newSelected = new Set(selectedExamIds)
-    const newDetails = [...selectedExamsDetails]
+    let newSelected = new Set(selectedExamIds)
+    let newDetails = [...selectedExamsDetails]
     
-    if (newSelected.has(exam.id)) {
-      newSelected.delete(exam.id)
-      const index = newDetails.findIndex(e => e.id === exam.id)
-      if (index > -1) newDetails.splice(index, 1)
+    if (isStudent) {
+      // For students, only allow single selection
+      if (newSelected.has(exam.id)) {
+        newSelected.delete(exam.id)
+        newDetails = []
+      } else {
+        newSelected = new Set([exam.id])
+        newDetails = [exam]
+      }
     } else {
-      newSelected.add(exam.id)
-      newDetails.push(exam)
+      // For teachers, allow multi-selection
+      if (newSelected.has(exam.id)) {
+        newSelected.delete(exam.id)
+        const index = newDetails.findIndex(e => e.id === exam.id)
+        if (index > -1) newDetails.splice(index, 1)
+      } else {
+        newSelected.add(exam.id)
+        newDetails.push(exam)
+      }
     }
     
     setSelectedExamIds(newSelected)
@@ -447,7 +496,7 @@ const ExamsPage: React.FC = () => {
                 </h1>
               </div>
               <div className="flex items-center gap-2">
-                {selectedExamIds.size > 0 && (
+                {selectedExamIds.size > 0 && !isStudent && (
                   <motion.div 
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
@@ -465,7 +514,7 @@ const ExamsPage: React.FC = () => {
                         Move ({selectedExamIds.size})
                     </Button>
                     {selectedExamIds.size > 1 && (
-                        <Button onClick={() => setIsMergeModalOpen(true)} variant="secondary" size="sm">
+                        <Button onClick={() =>{ setIsMergeModalOpen(true); console.log("merge clicked")}} variant="secondary" size="sm">
                             Merge ({selectedExamIds.size})
                         </Button>
                     )}
@@ -517,6 +566,42 @@ const ExamsPage: React.FC = () => {
 
           {/* Content Area */}
           <div className="flex-1 overflow-y-auto p-6 bg-muted/10">
+            {/* Paused Exams Section */}
+            {isStudent && !currentFolderId && pausedExamsData?.data.results && pausedExamsData.data.results.length > 0 && (
+              <div className="mb-8">
+                <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4 flex items-center">
+                  <Clock className="w-4 h-4 mr-2 text-amber-500" /> Paused Exams
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {pausedExamsData.data.results.map((result: any) => (
+                    <Card key={result._id} className="hover:shadow-md transition-all border-l-4 border-l-amber-500">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-lg line-clamp-1">{result.exam?.title || 'Unknown Exam'}</CardTitle>
+                        <CardDescription>
+                          Paused {formatRelativeTime(result.updatedAt)}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-4">
+                          <div className="flex justify-between text-sm text-muted-foreground">
+                            <span>Progress</span>
+                            <span>{result.answers?.length || 0} answered</span>
+                          </div>
+                          <Button 
+                            className="w-full bg-amber-600 hover:bg-amber-700 text-white"
+                            onClick={() => result.exam?.id && navigate(`/exams/${result.exam.id}/take?mode=practice`)}
+                            disabled={!result.exam}
+                          >
+                            Resume Exam
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Subfolders Grid */}
             {currentSubfolders.length > 0 && (
               <div className="mb-8">
@@ -634,7 +719,7 @@ const ExamsPage: React.FC = () => {
                           onClick={() => navigate(`/exams/${exam.id}`)}
                         >
                           {/* Selection Checkbox Overlay */}
-                          <div className={`absolute top-3 left-3 z-10 ${viewMode === 'list' ? 'relative top-0 left-0 mr-4' : ''}`}>
+                          {!isStudent && <div className={`absolute top-3 left-3 z-10 ${viewMode === 'list' ? 'relative top-0 left-0 mr-4' : ''}`}>
                             <Button
                               variant="ghost"
                               size="sm"
@@ -650,7 +735,7 @@ const ExamsPage: React.FC = () => {
                                 <Square className="h-5 w-5" />
                               )}
                             </Button>
-                          </div>
+                          </div>}
 
                           <div className={`flex-1 ${viewMode === 'list' ? 'flex items-center justify-between p-4' : ''}`}>
                             <CardHeader className={viewMode === 'list' ? 'p-0 flex-1' : 'pb-2 pt-10'}>
@@ -730,12 +815,27 @@ const ExamsPage: React.FC = () => {
                                                 <Eye className="mr-2 h-4 w-4" /> Publish
                                               </DropdownMenuItem>
                                             )}
-                                            <DropdownMenuItem onClick={(e) => {
-                                              e.stopPropagation()
-                                              navigate(`/exams/${exam.id}/settings`)
-                                            }}>
-                                              <Settings className="mr-2 h-4 w-4" /> Settings
-                                            </DropdownMenuItem>
+                                            {exam.status === 'published' ? (
+                                              <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                  <div className="w-full">
+                                                    <DropdownMenuItem disabled className="opacity-50 cursor-not-allowed">
+                                                      <Settings className="mr-2 h-4 w-4" /> Settings
+                                                    </DropdownMenuItem>
+                                                  </div>
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                  <p>Settings cannot be changed for published exams</p>
+                                                </TooltipContent>
+                                              </Tooltip>
+                                            ) : (
+                                              <DropdownMenuItem onClick={(e) => {
+                                                e.stopPropagation()
+                                                navigate(`/exams/${exam.id}/settings`)
+                                              }}>
+                                                <Settings className="mr-2 h-4 w-4" /> Settings
+                                              </DropdownMenuItem>
+                                            )}
                                             <DropdownMenuSeparator />
                                             <DropdownMenuItem 
                                               className="text-destructive focus:text-destructive focus:bg-destructive/10"
@@ -865,7 +965,235 @@ const ExamsPage: React.FC = () => {
                     <Button variant="outline" onClick={() => setIsMoveModalOpen(false)}>Cancel</Button>
                     <Button onClick={() => moveItemsMutation.mutate()} disabled={!targetFolderId}>Move</Button>
                 </DialogFooter>
-            </DialogContent>
+          </DialogContent>
+        </Dialog>
+
+
+        {/* Merge Exams Modal */}
+        <Dialog open={_isMergeModalOpen} onOpenChange={setIsMergeModalOpen}>
+          <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 gap-0">
+            <DialogHeader className="p-6 pb-4 border-b">
+              <DialogTitle>Merge Exams</DialogTitle>
+              <DialogDescription>
+                Combine {selectedExamIds.size} exams into a single exam.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="flex-1 overflow-y-auto">
+              <div className="p-6 space-y-6">
+                {/* Summary Stats */}
+                <div className="grid grid-cols-3 gap-4 p-4 bg-muted/30 rounded-lg border">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-primary">{selectedExamIds.size}</div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider">Exams</div>
+                  </div>
+                  <div className="text-center border-l border-r border-border/50">
+                    <div className="text-2xl font-bold text-primary">
+                      {selectedExamsDetails.reduce((acc, curr) => acc + (curr.questionCount || 0), 0)}
+                    </div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider">Total Questions</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-primary">
+                      {selectedExamsDetails.reduce((acc, curr) => acc + (curr.settings.duration || 0), 0)}
+                    </div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider">Total Minutes</div>
+                  </div>
+                </div>
+
+                <Tabs defaultValue="general" className="w-full">
+                  <TabsList className="grid w-full grid-cols-4 mb-4">
+                    <TabsTrigger value="general" className="flex items-center gap-2">
+                      <FileText className="h-4 w-4" />
+                      <span className="hidden sm:inline">General</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="config" className="flex items-center gap-2">
+                      <Settings className="h-4 w-4" />
+                      <span className="hidden sm:inline">Configuration</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="schedule" className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4" />
+                      <span className="hidden sm:inline">Schedule</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="access" className="flex items-center gap-2">
+                      <Users className="h-4 w-4" />
+                      <span className="hidden sm:inline">Access</span>
+                    </TabsTrigger>
+                  </TabsList>
+
+                  {/* General Tab */}
+                  <TabsContent value="general" className="space-y-4">
+                    <div className="grid gap-4">
+                      <div className="space-y-2">
+                        <Label>New Exam Title</Label>
+                        <Input 
+                          value={_mergeConfig.title}
+                          onChange={(e) => _setMergeConfig(prev => ({ ...prev, title: e.target.value }))}
+                          placeholder="e.g., Combined Final Exam"
+                        />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label>Description</Label>
+                        <Textarea 
+                          value={_mergeConfig.description}
+                          onChange={(e) => _setMergeConfig(prev => ({ ...prev, description: e.target.value }))}
+                          placeholder="Description for the merged exam"
+                          className="min-h-[100px]"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Selected Exams ({selectedExamIds.size})</Label>
+                        <div className="border rounded-md p-2 bg-muted/50 max-h-48 overflow-y-auto">
+                          <ul className="text-sm space-y-1">
+                            {selectedExamsDetails.map(exam => (
+                              <li key={exam.id} className="flex items-center justify-between p-2 hover:bg-background rounded transition-colors">
+                                <span className="font-medium">{exam.title}</span>
+                                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                                  <span>{exam.questionCount} Qs</span>
+                                  <span>{exam.settings.duration} min</span>
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  {/* Configuration Tab */}
+                  <TabsContent value="config" className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <Label>Duration (minutes)</Label>
+                        <Input 
+                          type="number"
+                          value={_mergeConfig.settings.duration}
+                          onChange={(e) => _setMergeConfig(prev => ({ 
+                            ...prev, 
+                            settings: { ...prev.settings, duration: parseInt(e.target.value) || 0 } 
+                          }))}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Default: {selectedExamsDetails.reduce((acc, curr) => acc + (curr.settings.duration || 0), 0)} mins
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Max Attempts</Label>
+                        <Input 
+                          type="number"
+                          min="1"
+                          value={_mergeConfig.settings.maxAttempts}
+                          onChange={(e) => _setMergeConfig(prev => ({ 
+                            ...prev, 
+                            settings: { ...prev.settings, maxAttempts: parseInt(e.target.value) || 1 } 
+                          }))}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label>Negative Marking</Label>
+                      
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                      {[
+                        { key: 'randomizeQuestions', label: 'Randomize Questions' },
+                        { key: 'randomizeOptions', label: 'Randomize Options' },
+                        { key: 'showResultImmediately', label: 'Show Result Immediately' },
+                        { key: 'allowReview', label: 'Allow Review' },
+                        { key: 'preventTabSwitch', label: 'Prevent Tab Switch' },
+                        { key: 'webcamMonitoring', label: 'Webcam Monitoring' },
+                        { key: 'allowCalculator', label: 'Allow Calculator' }
+                      ].map(({ key, label }) => (
+                        <div key={key} className="flex items-center justify-between p-3 border rounded-md bg-card">
+                          <Label htmlFor={`merge-${key}`} className="cursor-pointer flex-1 font-medium">{label}</Label>
+                          <Switch
+                            id={`merge-${key}`}
+                            checked={(_mergeConfig.settings as any)[key]}
+                            onCheckedChange={(checked) => _setMergeConfig(prev => ({
+                              ...prev,
+                              settings: { ...prev.settings, [key]: checked }
+                            }))}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </TabsContent>
+
+                  {/* Schedule Tab */}
+                  <TabsContent value="schedule" className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <Label>Start Date</Label>
+                        <Input 
+                          type="datetime-local"
+                          value={_mergeConfig.schedule.startDate}
+                          onChange={(e) => _setMergeConfig(prev => ({ 
+                            ...prev, 
+                            schedule: { ...prev.schedule, startDate: e.target.value } 
+                          }))}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>End Date</Label>
+                        <Input 
+                          type="datetime-local"
+                          value={_mergeConfig.schedule.endDate}
+                          onChange={(e) => _setMergeConfig(prev => ({ 
+                            ...prev, 
+                            schedule: { ...prev.schedule, endDate: e.target.value } 
+                          }))}
+                        />
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  {/* Access Tab */}
+                  <TabsContent value="access" className="space-y-4">
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>Visibility</Label>
+                        <select
+                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                          value={_mergeConfig.access.type}
+                          onChange={(e) => _setMergeConfig(prev => ({
+                            ...prev,
+                            access: { ...prev.access, type: e.target.value as any }
+                          }))}
+                        >
+                          <option value="private">Private (Invite Only)</option>
+                          <option value="public">Public (Open to All)</option>
+                        </select>
+                      </div>
+                      
+                      <div className="flex items-center justify-between p-3 border rounded-md bg-card">
+                        <Label htmlFor="merge-approval" className="cursor-pointer font-medium">Require Approval</Label>
+                        <Switch
+                          id="merge-approval"
+                          checked={_mergeConfig.access.type === 'owner'}
+                          onCheckedChange={(checked) => _setMergeConfig(prev => ({
+                            ...prev,
+                            access: { ...prev.access, type: checked ? 'owner' : 'public' }
+                          }))}
+                        />
+                      </div>
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              </div>
+            </div>
+
+            <DialogFooter className="p-6 pt-4 border-t bg-muted/10">
+              <Button variant="outline" onClick={() => setIsMergeModalOpen(false)}>Cancel</Button>
+              <Button onClick={() => mergeExamsMutation.mutate()} disabled={!_mergeConfig.title || mergeExamsMutation.isLoading}>
+                {mergeExamsMutation.isLoading ? <LoadingSpinner size="sm" className="mr-2" /> : null}
+                Merge Exams
+              </Button>
+            </DialogFooter>
+          </DialogContent>
         </Dialog>
 
       </div>

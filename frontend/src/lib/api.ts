@@ -124,7 +124,7 @@ export interface Exam {
     duration: number
     totalMarks: number
     passingMarks?: number
-    negativeMarking: boolean
+    negativeMarking: number
     randomizeQuestions: boolean
     randomizeOptions: boolean
     showResultImmediately: boolean
@@ -144,7 +144,6 @@ export interface Exam {
     type: 'owner' | 'invited' | 'public'
     allowedUsers?: string[]
     accessCode?: string
-    requireApproval?: boolean
     inviteCode?: string
     inviteLink?: string
     inviteLinkExpiry?: string
@@ -319,6 +318,17 @@ export const examAPI = {
   }): Promise<AxiosResponse<{ exam: Exam; message: string }>> =>
     api.post('/exam', data),
 
+  generateQuestions: (data: {
+    topic: string
+    subject: string
+    grade: string
+    count: number
+    type: string
+    difficulty: number
+    specificNeeds?: string
+  }): Promise<AxiosResponse<{ questions: Question[]; message: string }>> =>
+    api.post('/exam/generate-questions', data),
+
   updateExam: (
     id: string,
     data: any
@@ -343,6 +353,9 @@ export const examAPI = {
     mode?: 'practice' | 'exam'
   ): Promise<AxiosResponse<{ data: { resultId: string; exam: Exam; attempt: any }; message: string }>> =>
     api.post(`/exam/${id}/start`, { mode }),
+
+  pauseExam: (id: string): Promise<AxiosResponse<{ message: string; resultId: string }>> =>
+    api.post(`/exam/${id}/pause`),
 
   mergeExams: (data: {
     examIds: string[]

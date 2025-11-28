@@ -21,6 +21,7 @@ import Breadcrumbs from '@/components/Breadcrumbs'
 import InvitedUsersList from '@/components/InvitedUsersList'
 import { Lock, Users, Globe, Copy, Save, ArrowLeft, Trash2, AlertCircle, Calendar, Settings, FileText } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { Tooltip } from '@/components/ui/tooltip'
 
 const formatDateTimeLocal = (value?: string | Date) => {
   if (!value) return ''
@@ -38,7 +39,6 @@ const ExamSettingsPage: React.FC = () => {
     duration: 60,
     totalMarks: 100,
     passingMarks: 40,
-    negativeMarking: false,
     randomizeQuestions: false,
     randomizeOptions: false,
     showResultImmediately: true,
@@ -46,7 +46,8 @@ const ExamSettingsPage: React.FC = () => {
     preventTabSwitch: false,
     webcamMonitoring: false,
     maxAttempts: 1,
-    allowCalculator: false
+    allowCalculator: false,
+    allowPracticeMode: true
   }
 
   const [title, setTitle] = useState('')
@@ -60,7 +61,6 @@ const ExamSettingsPage: React.FC = () => {
   const [access, setAccess] = useState<any>({
     type: 'owner',
     accessCode: '',
-    requireApproval: false
   })
   
   const [inviteActionLoading, setInviteActionLoading] = useState<string | null>(null)
@@ -101,7 +101,6 @@ const ExamSettingsPage: React.FC = () => {
       setAccess({
         type: examData.access?.type || 'owner',
         accessCode: examData.access?.accessCode || '',
-        requireApproval: examData.access?.requireApproval || false
       })
       setInitialLoadDone(true)
     }
@@ -136,7 +135,6 @@ const ExamSettingsPage: React.FC = () => {
     // Compare Access (basic fields)
     if (access.type !== examData.access?.type) return true
     if (access.accessCode !== (examData.access?.accessCode || '')) return true
-    if (access.requireApproval !== (examData.access?.requireApproval || false)) return true
 
     return false
   }, [examData, title, description, settings, schedule, access])
@@ -162,7 +160,6 @@ const ExamSettingsPage: React.FC = () => {
         setAccess({
           type: updatedExam.access?.type || 'owner',
           accessCode: updatedExam.access?.accessCode || '',
-          requireApproval: updatedExam.access?.requireApproval || false
         })
         
         queryClient.invalidateQueries(['exam-settings', id])
@@ -413,6 +410,14 @@ const ExamSettingsPage: React.FC = () => {
                   />
                 </div>
                 <div className="flex items-center justify-between space-x-2">
+                  <Label htmlFor="allowPracticeMode" className="flex-1">Allow Practice Mode</Label>
+                  <Switch 
+                    id="allowPracticeMode"
+                    checked={settings.allowPracticeMode}
+                    onCheckedChange={(checked: boolean) => handleSettingChange('allowPracticeMode', checked)}
+                  />
+                </div>
+                <div className="flex items-center justify-between space-x-2">
                   <Label htmlFor="showResultImmediately" className="flex-1">Show Result Immediately</Label>
                   <Switch 
                     id="showResultImmediately"
@@ -445,12 +450,14 @@ const ExamSettingsPage: React.FC = () => {
                   />
                 </div>
                 <div className="flex items-center justify-between space-x-2">
-                  <Label htmlFor="negativeMarking" className="flex-1">Negative Marking</Label>
+                  <Label htmlFor="webcamMonitoring" className="flex-1">Webcam Monitoring</Label>
+                <Tooltip >
                   <Switch 
-                    id="negativeMarking"
-                    checked={settings.negativeMarking}
+                    id="webcamMonitoring"
+                    checked={settings.webcamMonitoring}
                     disabled
                   />
+                </Tooltip>
                 </div>
               </div>
             </CardContent>

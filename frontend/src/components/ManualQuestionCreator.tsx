@@ -10,71 +10,13 @@ import MathText from '@/components/MathText'
 import { Plus, Trash2, Upload as UploadIcon, Check, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 
-const QUESTION_TYPES: Array<{ label: string; value: Question['type'] }> = [
-  { label: 'Single Choice (MCQ)', value: 'mcq_single' },
-  { label: 'Multiple Choice (MSQ)', value: 'mcq_multi' },
-  { label: 'True / False', value: 'true_false' },
-  { label: 'Numeric Answer', value: 'numeric' },
-  { label: 'Descriptive', value: 'descriptive' }
-]
-
-const LATEX_TEMPLATES = [
-  { symbol: 'x²', latex: 'x^{2}', label: 'Superscript/Power' },
-  { symbol: 'x₂', latex: 'x_{2}', label: 'Subscript' },
-  { symbol: '½', latex: '\\frac{1}{2}', label: 'Fraction' },
-  { symbol: '[  ]', latex: '\\begin{bmatrix} a & b \\\\\\\\ c & d \\\\end{bmatrix}', label: '2x2 Matrix' },
-]
-
-const MATH_SYMBOLS = [
-  { symbol: 'α', latex: '\\alpha', label: 'Alpha' },
-  { symbol: 'β', latex: '\\beta', label: 'Beta' },
-  { symbol: 'γ', latex: '\\gamma', label: 'Gamma' },
-  { symbol: 'δ', latex: '\\delta', label: 'Delta' },
-  { symbol: 'θ', latex: '\\theta', label: 'Theta' },
-  { symbol: 'λ', latex: '\\lambda', label: 'Lambda' },
-  { symbol: 'μ', latex: '\\mu', label: 'Mu' },
-  { symbol: 'σ', latex: '\\sigma', label: 'Sigma' },
-  { symbol: 'Σ', latex: '\\Sigma', label: 'Sigma (capital)' },
-  { symbol: 'π', latex: '\\pi', label: 'Pi' },
-  { symbol: 'Δ', latex: '\\Delta', label: 'Delta (capital)' },
-  { symbol: 'Ω', latex: '\\Omega', label: 'Omega' },
-  { symbol: '∞', latex: '\\infty', label: 'Infinity' },
-  { symbol: '√', latex: '\\sqrt{}', label: 'Square root' },
-  { symbol: '∫', latex: '\\int', label: 'Integral' },
-  { symbol: '∑', latex: '\\sum', label: 'Summation' },
-  { symbol: '≤', latex: '\\leq', label: 'Less or equal' },
-  { symbol: '≥', latex: '\\geq', label: 'Greater or equal' },
-  { symbol: '≠', latex: '\\neq', label: 'Not equal' },
-  { symbol: '≈', latex: '\\approx', label: 'Approximately' },
-  { symbol: '×', latex: '\\times', label: 'Times' },
-  { symbol: '÷', latex: '\\div', label: 'Division' },
-  { symbol: '±', latex: '\\pm', label: 'Plus minus' },
-  { symbol: '∈', latex: '\\in', label: 'Element of' },
-  { symbol: '∉', latex: '\\notin', label: 'Not element of' },
-  { symbol: '⊂', latex: '\\subset', label: 'Subset' },
-  { symbol: '∪', latex: '\\cup', label: 'Union' },
-  { symbol: '∩', latex: '\\cap', label: 'Intersection' },
-  { symbol: '∅', latex: '\\emptyset', label: 'Empty set' },
-  { symbol: '→', latex: '\\rightarrow', label: 'Right arrow' },
-  { symbol: '⇒', latex: '\\Rightarrow', label: 'Implies' },
-  { symbol: '∀', latex: '\\forall', label: 'For all' },
-  { symbol: '∃', latex: '\\exists', label: 'There exists' },
-  { symbol: '¬', latex: '\\neg', label: 'Not' },
-  { symbol: '∧', latex: '\\wedge', label: 'And' },
-  { symbol: '∨', latex: '\\vee', label: 'Or' },
-]
+import { QUESTION_TYPES, LATEX_TEMPLATES, MATH_SYMBOLS, NEGATIVE_MARKING_OPTIONS } from '@/config/question'
+import useQuestion from '@/hooks/useQuestion'
 
 interface ManualQuestionCreatorProps {
   onAddQuestion: (question: Question) => void
 }
 
-const NEGATIVE_MARKING_OPTIONS = [
-  { label: 'No Negative Marking', value: 'none', fraction: 0 },
-  { label: '1/4 of Marks', value: '1/4', fraction: 0.25 },
-  { label: '1/3 of Marks', value: '1/3', fraction: 0.333 },
-  { label: '1/2 of Marks', value: '1/2', fraction: 0.5 },
-  { label: 'Custom', value: 'custom', fraction: 0 },
-]
 
 const ManualQuestionCreator: React.FC<ManualQuestionCreatorProps> = ({ onAddQuestion }) => {
   const [questionType, setQuestionType] = useState<Question['type']>('mcq_single')
@@ -97,17 +39,11 @@ const ManualQuestionCreator: React.FC<ManualQuestionCreatorProps> = ({ onAddQues
   const [uploadingOptionDiagram, setUploadingOptionDiagram] = useState<number | null>(null)
   const tempQuestionId = `temp-${Date.now()}`
 
+
+
   // Calculate actual negative marks based on scheme
-  const calculatedNegativeMarks = React.useMemo(() => {
-    if (negativeMarkingScheme === 'none') return 0
-    if (negativeMarkingScheme === 'custom') return customNegativeMarks
-    
-    const schemeOption = NEGATIVE_MARKING_OPTIONS.find(opt => opt.value === negativeMarkingScheme)
-    if (schemeOption) {
-      return -Math.abs(marks * schemeOption.fraction)
-    }
-    return 0
-  }, [negativeMarkingScheme, marks, customNegativeMarks])
+
+  const {calculatedNegativeMarks} = useQuestion(negativeMarkingScheme, marks, customNegativeMarks)
 
   const handleTypeChange = (type: Question['type']) => {
     setQuestionType(type)
@@ -373,11 +309,11 @@ const ManualQuestionCreator: React.FC<ManualQuestionCreatorProps> = ({ onAddQues
       <CardContent className="space-y-4">
         {/* Question Type */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Question Type</label>
+          <label className="block text-sm font-medium text-foreground mb-2">Question Type</label>
           <select
             value={questionType}
             onChange={(e) => handleTypeChange(e.target.value as Question['type'])}
-            className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             {QUESTION_TYPES.map((type) => (
               <option key={type.value} value={type.value}>
@@ -390,7 +326,7 @@ const ManualQuestionCreator: React.FC<ManualQuestionCreatorProps> = ({ onAddQues
         {/* Question Text */}
         <div>
           <div className="flex items-center justify-between mb-2">
-            <label className="block text-sm font-medium text-gray-700">Question Text</label>
+            <label className="block text-sm font-medium text-foreground">Question Text</label>
             <Button
               variant="outline"
               size="sm"
@@ -402,10 +338,10 @@ const ManualQuestionCreator: React.FC<ManualQuestionCreatorProps> = ({ onAddQues
           </div>
 
           {showSymbols && (
-            <div className="mb-3 p-3 border border-blue-200 bg-blue-50 rounded-md space-y-3">
+            <div className="mb-3 p-3 border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 rounded-md space-y-3">
               {/* LaTeX Templates */}
               <div>
-                <p className="text-xs font-medium text-gray-700 mb-2">Common Templates:</p>
+                <p className="text-xs font-medium text-foreground mb-2">Common Templates:</p>
                 <div className="flex flex-wrap gap-1">
                   {LATEX_TEMPLATES.map((item) => (
                     <Button
@@ -425,7 +361,7 @@ const ManualQuestionCreator: React.FC<ManualQuestionCreatorProps> = ({ onAddQues
 
               {/* Greek Letters & Symbols */}
               <div>
-                <p className="text-xs font-medium text-gray-700 mb-2">Symbols & Greek Letters:</p>
+                <p className="text-xs font-medium text-foreground mb-2">Symbols & Greek Letters:</p>
                 <div className="grid grid-cols-12 gap-1">
                   {MATH_SYMBOLS.map((item) => (
                     <Button
@@ -444,14 +380,14 @@ const ManualQuestionCreator: React.FC<ManualQuestionCreatorProps> = ({ onAddQues
               </div>
 
               {/* Help Section */}
-              <div className="bg-white p-2 rounded border border-blue-100">
-                <p className="text-xs text-gray-700 font-medium mb-1">
+              <div className="bg-background p-2 rounded border border-blue-100 dark:border-blue-900">
+                <p className="text-xs text-foreground font-medium mb-1">
                   💡 Tips:
                 </p>
-                <ul className="text-xs text-gray-600 space-y-0.5 ml-4 list-disc">
+                <ul className="text-xs text-muted-foreground space-y-0.5 ml-4 list-disc">
                   <li>Symbols insert at your cursor position</li>
                   <li>Preview appears below when you use math notation</li>
-                  <li>Type LaTeX manually: <code className="bg-gray-100 px-1 rounded">$\alpha + \beta^2$</code></li>
+                  <li>Type LaTeX manually: <code className="bg-muted px-1 rounded">$\alpha + \beta^2$</code></li>
                 </ul>
               </div>
             </div>
@@ -461,14 +397,14 @@ const ManualQuestionCreator: React.FC<ManualQuestionCreatorProps> = ({ onAddQues
             ref={textareaRef}
             value={questionText}
             onChange={(e) => setQuestionText(e.target.value)}
-            className="w-full min-h-[120px] rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+            className="w-full min-h-[120px] rounded-md border border-input px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono bg-background"
             placeholder="Enter your question (supports LaTeX: $\alpha$, $\beta$, etc.)"
           />
 
           {/* Live Preview of Question Text with Math Rendering */}
           {questionText && (questionText.includes('$') || questionText.includes('\\')) && (
-            <div className="p-3 border border-gray-200 rounded bg-gray-50 mt-2">
-              <p className="text-xs font-medium text-gray-600 mb-2">Preview:</p>
+            <div className="p-3 border border-border rounded bg-muted/50 mt-2">
+              <p className="text-xs font-medium text-muted-foreground mb-2">Preview:</p>
               <div className="text-sm leading-relaxed">
                 <MathText text={questionText} block />
               </div>
@@ -482,7 +418,7 @@ const ManualQuestionCreator: React.FC<ManualQuestionCreatorProps> = ({ onAddQues
                 <img
                   src={questionDiagram.url}
                   alt="Question diagram"
-                  className="max-h-40 rounded border border-gray-300"
+                  className="max-h-40 rounded border border-border"
                 />
                 <Button
                   variant="destructive"
@@ -520,7 +456,7 @@ const ManualQuestionCreator: React.FC<ManualQuestionCreatorProps> = ({ onAddQues
         {(questionType === 'mcq_single' || questionType === 'mcq_multi' || questionType === 'true_false') && (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <label className="text-sm font-medium text-gray-700">
+              <label className="text-sm font-medium text-foreground">
                 Options {questionType === 'mcq_multi' ? '(Select all correct)' : '(Select one correct)'}
               </label>
               {questionType !== 'true_false' && (
@@ -588,15 +524,15 @@ const ManualQuestionCreator: React.FC<ManualQuestionCreatorProps> = ({ onAddQues
                                   onChange={(e) => handleOptionDiagramUpload(idx, e)}
                                   className="hidden"
                                 />
-                                <UploadIcon className="h-4 w-4 text-gray-500 hover:text-blue-500" />
+                                <UploadIcon className="h-4 w-4 text-muted-foreground hover:text-primary" />
                               </label>
                             </Button>
                           )}
                         </div>
-                        
+
                         {/* Live Preview of Option Text with Math Rendering */}
                         {option && (option.includes('$') || option.includes('\\')) && (
-                          <div className="p-2 border border-gray-200 rounded bg-gray-50 text-sm">
+                          <div className="p-2 border border-border rounded bg-muted/50 text-sm">
                             <MathText text={option} />
                           </div>
                         )}
@@ -606,7 +542,7 @@ const ManualQuestionCreator: React.FC<ManualQuestionCreatorProps> = ({ onAddQues
                             <img
                               src={optionDiagrams[idx].url}
                               alt={`Option ${optionLabel} diagram`}
-                              className="max-h-32 rounded border border-gray-300"
+                              className="max-h-32 rounded border border-border"
                             />
                             <Button
                               variant="destructive"
@@ -648,7 +584,7 @@ const ManualQuestionCreator: React.FC<ManualQuestionCreatorProps> = ({ onAddQues
         {/* Numeric Answer */}
         {questionType === 'numeric' && (
           <div className="space-y-3">
-            <label className="block text-sm font-medium text-gray-700">Correct Numeric Answer</label>
+            <label className="block text-sm font-medium text-foreground">Correct Numeric Answer</label>
             
             {/* Answer Type Selection */}
             <div className="flex gap-4">
@@ -683,7 +619,7 @@ const ManualQuestionCreator: React.FC<ManualQuestionCreatorProps> = ({ onAddQues
             ) : (
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs text-gray-600 mb-1">Minimum Value</label>
+                  <label className="block text-xs text-muted-foreground mb-1">Minimum Value</label>
                   <Input
                     type="number"
                     step="any"
@@ -693,7 +629,7 @@ const ManualQuestionCreator: React.FC<ManualQuestionCreatorProps> = ({ onAddQues
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-600 mb-1">Maximum Value</label>
+                  <label className="block text-xs text-muted-foreground mb-1">Maximum Value</label>
                   <Input
                     type="number"
                     step="any"
@@ -706,7 +642,7 @@ const ManualQuestionCreator: React.FC<ManualQuestionCreatorProps> = ({ onAddQues
             )}
 
             {numericAnswerType === 'range' && numericMin && numericMax && (
-              <div className="text-xs bg-green-50 border border-green-200 rounded p-2 text-green-700">
+              <div className="text-xs bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded p-2 text-green-700 dark:text-green-300">
                 Any answer between <span className="font-semibold">{numericMin}</span> and <span className="font-semibold">{numericMax}</span> will be marked correct
               </div>
             )}
@@ -716,23 +652,23 @@ const ManualQuestionCreator: React.FC<ManualQuestionCreatorProps> = ({ onAddQues
         {/* Descriptive Answer Notes */}
         {questionType === 'descriptive' && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-foreground mb-2">
               Answer Guidelines/Notes (Optional)
             </label>
             <textarea
               value={descriptiveAnswer}
               onChange={(e) => setDescriptiveAnswer(e.target.value)}
-              className="w-full min-h-[80px] rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full min-h-[80px] rounded-md border border-input px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-background"
               placeholder="Guidance for manual grading (optional)"
             />
           </div>
         )}
 
         {/* Marks Configuration */}
-        <div className="space-y-4 p-4 border border-gray-200 rounded-lg bg-gray-50">
+        <div className="space-y-4 p-4 border border-border rounded-lg bg-muted/50">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-foreground mb-2">
                 Positive Marks
               </label>
               <Input
@@ -744,13 +680,13 @@ const ManualQuestionCreator: React.FC<ManualQuestionCreatorProps> = ({ onAddQues
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-foreground mb-2">
                 Negative Marking
               </label>
               <select
                 value={negativeMarkingScheme}
                 onChange={(e) => setNegativeMarkingScheme(e.target.value as any)}
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 {NEGATIVE_MARKING_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -763,7 +699,7 @@ const ManualQuestionCreator: React.FC<ManualQuestionCreatorProps> = ({ onAddQues
 
           {negativeMarkingScheme === 'custom' && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-foreground mb-2">
                 Custom Negative Marks
               </label>
               <Input
@@ -779,10 +715,10 @@ const ManualQuestionCreator: React.FC<ManualQuestionCreatorProps> = ({ onAddQues
 
           {/* Show calculated negative marks */}
           {negativeMarkingScheme !== 'none' && (
-            <div className="text-sm bg-blue-50 border border-blue-200 rounded p-2">
-              <span className="font-medium text-gray-700">Effective Negative Marks: </span>
+            <div className="text-sm bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded p-2">
+              <span className="font-medium text-foreground">Effective Negative Marks: </span>
               <span className="text-red-600 font-semibold">{calculatedNegativeMarks.toFixed(2)}</span>
-              <span className="text-gray-600 ml-2">
+              <span className="text-muted-foreground ml-2">
                 (for incorrect answer)
               </span>
             </div>
@@ -795,7 +731,7 @@ const ManualQuestionCreator: React.FC<ManualQuestionCreatorProps> = ({ onAddQues
           Add Question to Exam
         </Button>
 
-        <p className="text-xs text-center text-gray-500 mt-2">
+        <p className="text-xs text-center text-muted-foreground mt-2">
           Click to add this question. Form will reset for adding more questions.
         </p>
       </CardContent>

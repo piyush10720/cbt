@@ -42,7 +42,7 @@ const ExamWizard: React.FC<ExamWizardProps> = ({
       description: '',
       settings: {
         duration: 60,
-        negativeMarking: false,
+        negativeMarking: 0,
         randomizeQuestions: false,
         randomizeOptions: false,
         showResultImmediately: true,
@@ -58,8 +58,7 @@ const ExamWizard: React.FC<ExamWizardProps> = ({
         timezone: 'UTC'
       },
       access: {
-        type: 'private',
-        requireApproval: false
+        type: 'owner',
       }
     }
   )

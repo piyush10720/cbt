@@ -5,11 +5,13 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ManualQuestionCreator from '@/components/ManualQuestionCreator'
+import AIQuestionCreator from '@/components/AIQuestionCreator'
 import {
   Upload,
   FileText,
   CheckCircle,
-  X
+  X,
+  Sparkles
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -31,7 +33,7 @@ const PDFUploadStep: React.FC<PDFUploadStepProps> = ({
     answerKey?: File
   }>({})
   const [negativeMarkingScheme, setNegativeMarkingScheme] = useState<'none' | '1/4' | '1/3' | '1/2'>('1/4')
-  const [creationMethod, setCreationMethod] = useState<'pdf' | 'manual'>('pdf')
+  const [creationMethod, setCreationMethod] = useState<'pdf' | 'manual' | 'ai'>('pdf')
   const [dragActive, setDragActive] = useState(false)
 
   // Upload mutations
@@ -136,6 +138,11 @@ const PDFUploadStep: React.FC<PDFUploadStepProps> = ({
     onQuestionsUpdate([...questions, newQuestion])
   }
 
+  const handleAddAIQuestion = (newQuestions: Question[]) => {
+    console.log('Adding AI question:', newQuestions)
+    onQuestionsUpdate([...questions, ...newQuestions])
+  }
+
   const isLoading = uploadCompleteMutation.isLoading
 
   return (
@@ -168,6 +175,17 @@ const PDFUploadStep: React.FC<PDFUploadStepProps> = ({
                     <p className="text-xs opacity-80">Build questions from scratch</p>
                   </div>
                 </Button>
+                <Button
+                  variant={creationMethod === 'ai' ? 'default' : 'outline'}
+                  onClick={() => setCreationMethod('ai')}
+                  className="flex-1 h-20"
+                >
+                  <div className="text-center">
+                    <Sparkles className="h-6 w-6 mx-auto mb-1" />
+                    <span className="font-medium">AI Generate</span>
+                    <p className="text-xs opacity-80">Generate questions using AI</p>
+                  </div>
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -183,16 +201,16 @@ const PDFUploadStep: React.FC<PDFUploadStepProps> = ({
             <CardContent className="space-y-4">
               {/* Question Paper Upload */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-foreground mb-2">
                   Question Paper (Required)
                 </label>
                 <div
                   className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
                     dragActive
-                      ? 'border-blue-500 bg-blue-50'
+                      ? 'border-primary bg-primary/10'
                       : files.questionPaper
-                      ? 'border-green-500 bg-green-50'
-                      : 'border-gray-300 hover:border-gray-400'
+                      ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
+                      : 'border-border hover:border-primary/50'
                   }`}
                   onDragEnter={handleDrag}
                   onDragLeave={handleDrag}
@@ -201,10 +219,10 @@ const PDFUploadStep: React.FC<PDFUploadStepProps> = ({
                 >
                     {files.questionPaper ? (
                       <div className="flex items-center justify-center space-x-2">
-                        <FileText className="w-8 h-8 text-green-600" />
+                        <FileText className="w-8 h-8 text-green-600 dark:text-green-400" />
                         <div>
-                          <p className="font-medium text-green-800">{files.questionPaper.name}</p>
-                          <p className="text-sm text-green-600">
+                          <p className="font-medium text-green-800 dark:text-green-300">{files.questionPaper.name}</p>
+                          <p className="text-sm text-green-600 dark:text-green-400">
                             {(files.questionPaper.size / 1024 / 1024).toFixed(2)} MB
                           </p>
                         </div>
@@ -218,8 +236,8 @@ const PDFUploadStep: React.FC<PDFUploadStepProps> = ({
                       </div>
                     ) : (
                       <div>
-                        <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                        <p className="text-gray-600 mb-2">
+                        <Upload className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                        <p className="text-muted-foreground mb-2">
                           Drag and drop your question paper PDF here, or
                         </p>
                         <Button variant="outline" asChild>
@@ -240,16 +258,16 @@ const PDFUploadStep: React.FC<PDFUploadStepProps> = ({
 
                 {/* Answer Key Upload */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-foreground mb-2">
                     Answer Key (Optional)
                   </label>
                   <div
                     className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
                       dragActive
-                        ? 'border-blue-500 bg-blue-50'
+                        ? 'border-primary bg-primary/10'
                         : files.answerKey
-                        ? 'border-green-500 bg-green-50'
-                        : 'border-gray-300 hover:border-gray-400'
+                        ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
+                        : 'border-border hover:border-primary/50'
                     }`}
                     onDragEnter={handleDrag}
                     onDragLeave={handleDrag}
@@ -258,10 +276,10 @@ const PDFUploadStep: React.FC<PDFUploadStepProps> = ({
                   >
                     {files.answerKey ? (
                       <div className="flex items-center justify-center space-x-2">
-                        <FileText className="w-8 h-8 text-green-600" />
+                        <FileText className="w-8 h-8 text-green-600 dark:text-green-400" />
                         <div>
-                          <p className="font-medium text-green-800">{files.answerKey.name}</p>
-                          <p className="text-sm text-green-600">
+                          <p className="font-medium text-green-800 dark:text-green-300">{files.answerKey.name}</p>
+                          <p className="text-sm text-green-600 dark:text-green-400">
                             {(files.answerKey.size / 1024 / 1024).toFixed(2)} MB
                           </p>
                         </div>
@@ -275,8 +293,8 @@ const PDFUploadStep: React.FC<PDFUploadStepProps> = ({
                       </div>
                     ) : (
                       <div>
-                        <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                        <p className="text-gray-600 mb-2">
+                        <Upload className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                        <p className="text-muted-foreground mb-2">
                           Drag and drop your answer key PDF here, or
                         </p>
                         <Button variant="outline" asChild>
@@ -296,21 +314,21 @@ const PDFUploadStep: React.FC<PDFUploadStepProps> = ({
                 </div>
 
               {/* Negative Marking Scheme Selection */}
-              <div className="border-t pt-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+              <div className="border-t border-border pt-4">
+                <label className="block text-sm font-medium text-foreground mb-2">
                   Negative Marking Scheme (for all questions)
                 </label>
                 <select
                   value={negativeMarkingScheme}
                   onChange={(e) => setNegativeMarkingScheme(e.target.value as any)}
-                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 >
                   <option value="none">No Negative Marking</option>
                   <option value="1/4">1/4 of Marks (Standard)</option>
                   <option value="1/3">1/3 of Marks</option>
                   <option value="1/2">1/2 of Marks</option>
                 </select>
-                <p className="text-xs text-gray-500 mt-2">
+                <p className="text-xs text-muted-foreground mt-2">
                   This scheme will be applied to all questions extracted from the PDF. 
                   You can modify individual questions later in the review phase.
                 </p>
@@ -337,15 +355,18 @@ const PDFUploadStep: React.FC<PDFUploadStepProps> = ({
           {creationMethod === 'manual' && (
             <ManualQuestionCreator onAddQuestion={handleAddManualQuestion} />
           )}
+          {creationMethod === 'ai' && (
+            <AIQuestionCreator onAddQuestion={handleAddAIQuestion} />
+          )}
         </>
       )}
 
       {/* Status */}
       {questions.length > 0 && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
           <div className="flex items-center space-x-2">
-            <CheckCircle className="w-5 h-5 text-green-600" />
-            <span className="text-green-800 font-medium">
+            <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
+            <span className="text-green-800 dark:text-green-300 font-medium">
               {questions.length} questions ready for review
             </span>
           </div>

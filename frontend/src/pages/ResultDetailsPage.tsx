@@ -209,6 +209,7 @@ const ResultDetailsPage: React.FC = () => {
     return creatorId === user.id
   }, [exam, user])
 
+  console.log(exam,"exam")
   const gradeMutation = useMutation(
     async ({ questionId, marks }: { questionId: string; marks: number }) => {
       if (!id) throw new Error('Result ID missing')

@@ -88,6 +88,13 @@ const ResultsPage: React.FC = () => {
     }
   )
 
+  // Fetch paused exams
+  const { data: pausedExamsData } = useQuery(
+    ['results', 'paused'],
+    () => resultAPI.getUserResults({ status: 'paused', limit: 3, sortBy: 'updatedAt', sortOrder: 'desc' }),
+    { enabled: true }
+  )
+
   const results = data?.results ?? []
   const pagination = data?.pagination
 
@@ -221,6 +228,53 @@ const ResultsPage: React.FC = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Paused Exams Section */}
+      {pausedExamsData?.data.results && pausedExamsData.data.results.length > 0 && (
+        <div className="space-y-4">
+          <h2 className="text-xl font-bold flex items-center gap-2">
+            <Clock className="h-5 w-5 text-amber-500" />
+            Paused Exams
+          </h2>
+          <div className={`grid gap-6 ${
+            pausedExamsData.data.results.length === 1 ? 'grid-cols-1' :
+            pausedExamsData.data.results.length === 2 ? 'grid-cols-1 md:grid-cols-2' :
+            'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
+          }`}>
+            {pausedExamsData.data.results.map((result: any) => (
+              <Card key={result.id} className="hover:shadow-md transition-all border-l-4 border-l-amber-500">
+                <CardContent className="p-6">
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <h3 className="font-semibold text-lg line-clamp-1">{result.exam?.title || 'Unknown Exam'}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Paused {formatRelativeTime(result.updatedAt)}
+                      </p>
+                    </div>
+                    <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200">
+                      Paused
+                    </Badge>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div className="flex justify-between text-sm text-muted-foreground bg-muted/30 p-2 rounded">
+                      <span>Progress</span>
+                      <span className="font-medium text-foreground">{result.answers?.length || 0} answered</span>
+                    </div>
+                    <Button 
+                      className="w-full bg-amber-600 hover:bg-amber-700 text-white shadow-sm"
+                      onClick={() => result.exam?.id && navigate(`/exams/${result.exam.id}/take?mode=practice`)}
+                      disabled={!result.exam}
+                    >
+                      Resume Exam <ArrowRight className="w-4 h-4 ml-2" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Results List */}
       {isLoading ? (

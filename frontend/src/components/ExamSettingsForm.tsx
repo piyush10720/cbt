@@ -290,19 +290,7 @@ const ExamSettingsForm: React.FC<ExamSettingsFormProps> = ({
                 </Select>
               </div>
 
-              <div className="flex items-center justify-between space-x-2 pt-4 border-t">
-                <div className="space-y-0.5">
-                  <Label htmlFor="requireApproval">Require Approval</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Require manual approval before participation
-                  </p>
-                </div>
-                <Switch
-                  id="requireApproval"
-                  checked={examSettings.access?.requireApproval || false}
-                  onCheckedChange={(checked) => handleAccessChange('requireApproval', checked)}
-                />
-              </div>
+
 
               {examSettings.access?.type === 'restricted' && (
                 <div className="space-y-2 pt-4 border-t">

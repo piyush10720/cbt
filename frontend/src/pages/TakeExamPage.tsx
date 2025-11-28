@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import { formatTime } from '@/lib/utils'
-import { AlertCircle, CheckCircle, ChevronLeft, ChevronRight, Clock, Flag, Send, Calculator, BookOpen, Tag, ChevronDown, ChevronUp, Bookmark, BookmarkCheck, Upload, X, StickyNote } from 'lucide-react'
+import { AlertCircle, CheckCircle, ChevronLeft, ChevronRight, Clock, Flag, Send, Calculator, ChevronDown, ChevronUp, Bookmark, BookmarkCheck, Upload, X, StickyNote, PauseCircle, BookOpen } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { getOptionLabel, getOptionText, hasOptionDiagram, getOptionDiagramUrl } from '@/utils/questionHelpers'
 import ImageModal from '@/components/ImageModal'
@@ -39,7 +39,7 @@ type StartExamResponse = {
       settings: {
         duration: number
         totalMarks: number
-        negativeMarking: boolean
+        negativeMarking: number
         randomizeQuestions: boolean
         randomizeOptions: boolean
         showResultImmediately: boolean
@@ -76,6 +76,7 @@ type StartExamResponse = {
         userAnswer: any
         isMarkedForReview?: boolean
       }>
+      mode?: 'exam' | 'practice'
     }
   }
 }
@@ -104,7 +105,7 @@ const TakeExamPage: React.FC = () => {
 
   const [showCalculator, setShowCalculator] = useState(false)
   const [searchParams] = useSearchParams()
-  const isPracticeMode = searchParams.get('mode') === 'practice'
+  const queryMode = searchParams.get('mode') === 'practice'
   const [practiceAnswers, setPracticeAnswers] = useState<Record<string, { 
     isCorrect: boolean; 
     explanation?: {
@@ -167,7 +168,7 @@ const TakeExamPage: React.FC = () => {
       if (!id) {
         throw new Error('Missing exam identifier')
       }
-      const response = await examAPI.startExam(id, isPracticeMode ? 'practice' : 'exam')
+      const response = await examAPI.startExam(id, queryMode ? 'practice' : 'exam')
       const data = response.data as any
       return {
         message: data.message || 'Exam started',
@@ -197,6 +198,8 @@ const TakeExamPage: React.FC = () => {
   const resultId = data?.data.resultId
   const exam = data?.data.exam
   const attempt = data?.data.attempt
+  
+  const isPracticeMode = attempt?.mode ? attempt.mode === 'practice' : queryMode
 
   const questions = useMemo(() => {
     if (!exam) return []
@@ -210,14 +213,15 @@ const TakeExamPage: React.FC = () => {
       if (attempt?.answers && attempt.answers.length > 0) {
         const restoredAnswers: Record<string, any> = {}
         attempt.answers.forEach((ans: any) => {
-           if (ans.questionId) {
-             restoredAnswers[ans.questionId] = ans.userAnswer
+           const qId = typeof ans.questionId === 'object' ? ans.questionId._id || ans.questionId : ans.questionId
+           if (qId) {
+             restoredAnswers[String(qId)] = ans.userAnswer
            }
         })
         questions.forEach((question) => {
           const questionId = question._id || question.id || ''
-          if (questionId && restoredAnswers[questionId] === undefined) {
-            restoredAnswers[questionId] = null
+          if (questionId && restoredAnswers[String(questionId)] === undefined) {
+            restoredAnswers[String(questionId)] = null
           }
         })
         return restoredAnswers
@@ -240,14 +244,15 @@ const TakeExamPage: React.FC = () => {
       if (attempt?.answers && attempt.answers.length > 0) {
         const restoredMarked: Record<string, boolean> = {}
         attempt.answers.forEach((ans: any) => {
-           if (ans.questionId) {
-             restoredMarked[ans.questionId] = ans.isMarkedForReview || false
+           const qId = typeof ans.questionId === 'object' ? ans.questionId._id || ans.questionId : ans.questionId
+           if (qId) {
+             restoredMarked[String(qId)] = ans.isMarkedForReview || false
            }
         })
         questions.forEach((question) => {
           const questionId = question._id || question.id || ''
-          if (questionId && restoredMarked[questionId] === undefined) {
-            restoredMarked[questionId] = false
+          if (questionId && restoredMarked[String(questionId)] === undefined) {
+            restoredMarked[String(questionId)] = false
           }
         })
         return restoredMarked
@@ -639,11 +644,6 @@ const TakeExamPage: React.FC = () => {
 
     setUploadingImage(true)
     try {
-      // Use imageUploadAPI directly instead of generic uploadAPI
-      // We need to cast to any because api.ts might not have the updated signature yet
-      // or we can use the existing signature and pass type as 'answer' in metadata
-      // checking api.ts, imageUploadAPI.uploadDiagram takes metadata with type 'question' | 'option'
-      // We might need to cast type to any to bypass TS check if we didn't update api.ts types
       const response = await import('@/lib/api').then(m => m.imageUploadAPI.uploadDiagram(file, {
         type: 'answer' as any,
         questionId: currentQuestionId
@@ -682,6 +682,18 @@ const TakeExamPage: React.FC = () => {
     }
     
     handleAnswerChange(currentQuestionId, newAnswer)
+  }
+
+  const handlePause = async () => {
+    if (!id) return
+    try {
+      await examAPI.pauseExam(id)
+      toast.success('Exam paused successfully')
+      navigate('/dashboard')
+    } catch (error) {
+      console.error('Failed to pause exam:', error)
+      toast.error('Failed to pause exam')
+    }
   }
 
   if (isLoading) {
@@ -732,70 +744,75 @@ const TakeExamPage: React.FC = () => {
                 <Calculator className="h-5 w-5" />
               </Button>
             )}
+            {exam.settings.allowPracticeMode && (
+              <Button 
+                variant="outline"
+                size="sm"
+                onClick={handlePause}
+                className="gap-2"
+              >
+                <PauseCircle className="h-4 w-4" />
+                Pause
+              </Button>
+            )}
+            <Button variant="outline" onClick={() => navigate('/dashboard')}>
+              Exit
+            </Button>
           </div>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
-          <div className="space-y-6">
-            <Card className="min-h-[400px]">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          <div className="lg:col-span-3 space-y-6">
+            <Card>
               <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
-                    <CardTitle className="text-lg">
+                    <CardTitle className="text-base font-medium">
                       Question {currentIndex + 1} of {questions.length}
                     </CardTitle>
                     {currentQuestion.tags && currentQuestion.tags.length > 0 && (
-                      <div className="relative">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 px-2 text-xs"
-                          onClick={() => setShowTagsExpanded(!showTagsExpanded)}
-                        >
-                          <Tag className="h-3 w-3 mr-1" />
-                          {currentQuestion.tags.length} tags
-                          {showTagsExpanded ? <ChevronUp className="h-3 w-3 ml-1" /> : <ChevronDown className="h-3 w-3 ml-1" />}
-                        </Button>
-                        {showTagsExpanded && (
-                          <div className="absolute top-full left-0 mt-1 z-10 bg-popover border rounded-md shadow-md p-2 min-w-[200px]">
-                            <div className="flex flex-wrap gap-1">
-                              {currentQuestion.tags.map(tag => (
-                                <Badge key={tag} variant="secondary" className="text-xs">
-                                  {tag}
-                                </Badge>
-                              ))}
-                            </div>
-                          </div>
+                      <div className="flex items-center gap-1">
+                        {currentQuestion.tags.slice(0, showTagsExpanded ? undefined : 2).map((tag, idx) => (
+                          <Badge key={idx} variant="secondary" className="text-xs px-1.5 py-0 h-5">
+                            {tag}
+                          </Badge>
+                        ))}
+                        {currentQuestion.tags.length > 2 && (
+                          <button
+                            onClick={() => setShowTagsExpanded(!showTagsExpanded)}
+                            className="text-xs text-muted-foreground hover:text-foreground flex items-center"
+                          >
+                            {showTagsExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                          </button>
                         )}
                       </div>
                     )}
                   </div>
                   <CardDescription>
-                    Marks: {currentQuestion.marks} {currentQuestion.marks === 1 ? 'mark' : 'marks'}
-                    {exam.settings.negativeMarking && ' (Negative marking applied)'}
+                    {currentQuestion.type === 'mcq_single' && 'Select the correct option'}
+                    {currentQuestion.type === 'mcq_multi' && 'Select all correct options'}
+                    {currentQuestion.type === 'true_false' && 'Select True or False'}
+                    {currentQuestion.type === 'descriptive' && 'Write your answer'}
+                    {currentQuestion.type === 'numeric' && 'Enter the numerical answer'}
                   </CardDescription>
                 </div>
-
-                <div className="flex items-center group">
-                  {/* Add/Edit Note Button - Slides in on Hover */}
-                  <div className="grid grid-rows-[0fr] group-hover:grid-rows-[1fr] transition-[grid-template-rows] duration-200 ease-out">
-                    <div className="overflow-hidden">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setNoteInput(bookmarkedQuestions[currentQuestionId]?.notes || '')
-                          setIsNoteModalOpen(true)
-                        }}
-                        className={cn(
-                          "h-8 text-xs font-medium gap-1.5 mr-1",
-                          bookmarkedQuestions[currentQuestionId]?.notes ? "text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50" : "text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        <StickyNote className={cn("w-3.5 h-3.5", bookmarkedQuestions[currentQuestionId]?.notes ? "fill-current" : "")} />
-                        {bookmarkedQuestions[currentQuestionId]?.notes ? 'Edit Note' : 'Add Note'}
-                      </Button>
-                    </div>
+                <div className="flex items-center gap-1">
+                  <div className="flex items-center">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setNoteInput(bookmarkedQuestions[currentQuestionId]?.notes || '')
+                        setIsNoteModalOpen(true)
+                      }}
+                      className={cn(
+                        "h-8 text-xs font-medium gap-1.5 mr-1",
+                        bookmarkedQuestions[currentQuestionId]?.notes ? "text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50" : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      <StickyNote className={cn("w-3.5 h-3.5", bookmarkedQuestions[currentQuestionId]?.notes ? "fill-current" : "")} />
+                      {bookmarkedQuestions[currentQuestionId]?.notes ? 'Edit Note' : 'Add Note'}
+                    </Button>
                   </div>
 
                   {/* Bookmark Button */}
@@ -917,6 +934,7 @@ const TakeExamPage: React.FC = () => {
                               const optionText = getOptionText(option)
                               const hasDiagram = hasOptionDiagram(option)
                               const diagramUrl = getOptionDiagramUrl(option)
+                              
                               const selectedOptions: string[] = Array.isArray(answerValue) ? answerValue : []
                               const isSelected = selectedOptions.includes(optionLabel)
                               const toggleOption = () => {
@@ -1031,6 +1049,18 @@ const TakeExamPage: React.FC = () => {
                                 </div>
                               )}
                             </div>
+                          </div>
+                        )
+                      case 'numeric':
+                        const numericAnswer = answerValue || { value: '' }
+                        return (
+                          <div className="space-y-4">
+                            <input
+                              type="number"
+                              className="w-full p-4 rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                              value={numericAnswer.value || ''}
+                              onChange={(e) => handleAnswerChange(currentQuestionId, { value: e.target.value })}
+                            />
                           </div>
                         )
                       
@@ -1287,7 +1317,7 @@ const TakeExamPage: React.FC = () => {
               </CardHeader>
               <CardContent className="space-y-2 text-sm text-muted-foreground">
                 <p>Total Marks: {exam.settings.totalMarks}</p>
-                <p>Negative Marking: {exam.settings.negativeMarking ? 'Yes' : 'No'}</p>
+                <p>Negative Marking: {exam.settings.negativeMarking > 0 ? `${exam.settings.negativeMarking*100} % of marks`: 'No'}</p>
                 <p>Allow Review: {exam.settings.allowReview ? 'Yes' : 'No'}</p>
                 <p>Randomize Questions: {exam.settings.randomizeQuestions ? 'Enabled' : 'Disabled'}</p>
                 <p>Calculator: {exam.settings.allowCalculator ? 'Allowed' : 'Not Allowed'}</p>

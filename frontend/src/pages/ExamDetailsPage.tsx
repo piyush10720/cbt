@@ -263,8 +263,8 @@ const ExamDetailsPage: React.FC = () => {
                             <li>You can navigate between questions using the question palette.</li>
                             <li>Ensure you have a stable internet connection.</li>
                             <li>Do not refresh the page during the exam.</li>
-                            {exam.settings.negativeMarking && (
-                              <li className="text-amber-600 dark:text-amber-400 font-medium">Negative marking is enabled for incorrect answers.</li>
+                            {exam.settings.negativeMarking > 0 && (
+                              <li className="text-amber-600 dark:text-amber-400 font-medium">Negative marking is enabled for incorrect answers. Each incorrect answer will deduct {exam.settings.negativeMarking*100}% of marks.</li>
                             )}
                           </ul>
                         </div>

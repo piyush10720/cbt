@@ -336,11 +336,11 @@ const CollapsibleQuestionCard: React.FC<CollapsibleQuestionCardProps> = memo(({
       isExpanded && isFocused ? 'ring-2 ring-blue-600 shadow-lg' : 
       isExpanded ? 'ring-1 ring-blue-300' : ''
     }`}>
-      <CardHeader className="py-3 px-4 cursor-pointer hover:bg-gray-50" onClick={onToggleExpand}>
+      <CardHeader className="py-3 px-4 cursor-pointer hover:bg-accent/50 transition-colors" onClick={onToggleExpand}>
         <div className="flex items-start justify-between">
           <div className="flex items-start gap-3 flex-1">
             <div className="flex items-center gap-2">
-              {isExpanded ? <ChevronUp className="h-5 w-5 text-gray-500" /> : <ChevronDown className="h-5 w-5 text-gray-500" />}
+              {isExpanded ? <ChevronUp className="h-5 w-5 text-muted-foreground" /> : <ChevronDown className="h-5 w-5 text-muted-foreground" />}
               <span className="font-semibold text-sm">Q{index + 1}</span>
             </div>
 
@@ -350,12 +350,12 @@ const CollapsibleQuestionCard: React.FC<CollapsibleQuestionCardProps> = memo(({
               ) : (
                 <div>
                   {questionPreview ? (
-                    <MathText text={questionPreview} className="text-sm text-gray-700" />
+                    <MathText text={questionPreview} className="text-sm text-foreground" />
                   ) : (
-                    <p className="text-sm text-gray-700">(Empty question)</p>
+                    <p className="text-sm text-muted-foreground">(Empty question)</p>
                   )}
                   <div className="flex items-center gap-2 mt-1">
-                    <span className="text-xs text-gray-500">
+                    <span className="text-xs text-muted-foreground">
                       {QUESTION_TYPES.find((t) => t.value === question.type)?.label} • {question.marks} marks
                       {(question as any).negative_marking_scheme && (question as any).negative_marking_scheme !== 'none' && (
                         <span className="text-red-600 ml-1">
@@ -436,7 +436,7 @@ const CollapsibleQuestionCard: React.FC<CollapsibleQuestionCardProps> = memo(({
           {/* Question Text */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="block text-sm font-medium text-gray-700">
+              <label className="block text-sm font-medium text-foreground">
                 Question Text
               </label>
               {detectMissingBackslashes(question.text) && (
@@ -459,8 +459,8 @@ const CollapsibleQuestionCard: React.FC<CollapsibleQuestionCardProps> = memo(({
               onClick={(e) => e.stopPropagation()}
             />
             {question.text && (question.text.includes('$') || question.text.includes('\\')) && (
-              <div className="p-3 border border-gray-200 rounded bg-gray-50">
-                <p className="text-xs font-medium text-gray-600 mb-2">Preview with LaTeX rendering:</p>
+              <div className="p-3 border border-border rounded bg-muted/50">
+                <p className="text-xs font-medium text-muted-foreground mb-2">Preview with LaTeX rendering:</p>
                 <div className="text-sm leading-relaxed">
                   <MathText text={question.text} block />
                 </div>
@@ -472,7 +472,7 @@ const CollapsibleQuestionCard: React.FC<CollapsibleQuestionCardProps> = memo(({
                   <img
                     src={question.diagram.url}
                     alt="Question diagram"
-                    className="max-w-full h-auto max-h-60 rounded border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity"
+                    className="max-w-full h-auto max-h-60 rounded border border-border cursor-pointer hover:opacity-80 transition-opacity"
                     onClick={(e) => {
                       e.stopPropagation()
                       setModalImage({
@@ -495,7 +495,7 @@ const CollapsibleQuestionCard: React.FC<CollapsibleQuestionCardProps> = memo(({
                   </Button>
                 </div>
                 <div className="flex items-center justify-between mt-1">
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-muted-foreground">
                     {question.diagram.description || 'Diagram from PDF'} <span className="text-blue-600">(Click to enlarge)</span>
                   </p>
                   {uploadingDiagram ? (
@@ -575,12 +575,12 @@ const CollapsibleQuestionCard: React.FC<CollapsibleQuestionCardProps> = memo(({
           {/* Tags */}
           <div className="space-y-2">
             <div 
-              className="flex items-center gap-2 cursor-pointer text-sm font-medium text-gray-700 select-none"
+              className="flex items-center gap-2 cursor-pointer text-sm font-medium text-foreground select-none"
               onClick={() => setIsTagsVisible(!isTagsVisible)}
             >
               {isTagsVisible ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
               <span>Tags</span>
-              <span className="text-xs text-gray-500 font-normal">(comma separated)</span>
+              <span className="text-xs text-muted-foreground font-normal">(comma separated)</span>
             </div>
             
             {isTagsVisible && (
@@ -601,7 +601,7 @@ const CollapsibleQuestionCard: React.FC<CollapsibleQuestionCardProps> = memo(({
           {/* Question Type and Marks */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Question Type</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Question Type</label>
               <select
                 value={question.type}
                 onChange={(e) => handleQuestionTypeChange(e.target.value as Question['type'])}
@@ -617,7 +617,7 @@ const CollapsibleQuestionCard: React.FC<CollapsibleQuestionCardProps> = memo(({
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Marks</label>
+                <label className="block text-sm font-medium text-foreground mb-1">Marks</label>
                 <Input
                   type="number"
                   min="0"
@@ -643,10 +643,10 @@ const CollapsibleQuestionCard: React.FC<CollapsibleQuestionCardProps> = memo(({
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-foreground mb-1">
                   Negative Marks
                   {(question as any).negative_marking_scheme && (question as any).negative_marking_scheme !== 'none' && (
-                    <span className="text-xs text-gray-500 ml-1">
+                    <span className="text-xs text-muted-foreground ml-1">
                       ({(question as any).negative_marking_scheme === 'custom' ? 'Custom' : (question as any).negative_marking_scheme})
                     </span>
                   )}
@@ -659,7 +659,7 @@ const CollapsibleQuestionCard: React.FC<CollapsibleQuestionCardProps> = memo(({
                   className="text-red-600 font-medium"
                 />
                 {(question as any).negative_marking_scheme && (question as any).negative_marking_scheme !== 'none' && (question as any).negative_marking_scheme !== 'custom' && (
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-muted-foreground mt-1">
                     Auto-calculated: {(question as any).negative_marking_scheme} of {Number(question.marks).toFixed(2)} marks = {Number(question.negative_marks).toFixed(2)}
                   </p>
                 )}
@@ -672,8 +672,8 @@ const CollapsibleQuestionCard: React.FC<CollapsibleQuestionCardProps> = memo(({
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Options</label>
-                  <p className="text-xs text-gray-500 mt-0.5">
+                  <label className="text-sm font-medium text-foreground">Options</label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
                     Click <UploadIcon className="h-3 w-3 inline mx-0.5" /> icon to add/replace diagram for each option
                   </p>
                 </div>
@@ -736,7 +736,7 @@ const CollapsibleQuestionCard: React.FC<CollapsibleQuestionCardProps> = memo(({
                                 </div>
                                 {editingLabelIndex === idx && (
                                     <div className="flex items-center gap-2 pl-1">
-                                        <span className="text-xs text-gray-500 w-12">Label:</span>
+                                        <span className="text-xs text-muted-foreground w-12">Label:</span>
                                         <Input
                                             value={optionLabel}
                                             onChange={(e) => handleOptionLabelChange(idx, e.target.value)}
@@ -772,14 +772,14 @@ const CollapsibleQuestionCard: React.FC<CollapsibleQuestionCardProps> = memo(({
                                     className="hidden"
                                     onClick={(e) => e.stopPropagation()}
                                   />
-                                  <UploadIcon className="h-4 w-4 text-gray-500 hover:text-blue-500" />
+                                  <UploadIcon className="h-4 w-4 text-muted-foreground hover:text-primary" />
                                 </label>
                               </Button>
                             )}
                           </div>
                           
                           {optionText && (optionText.includes('$') || optionText.includes('\\')) && (
-                            <div className="p-2 border border-gray-200 rounded bg-gray-50 text-sm">
+                            <div className="p-2 border border-border rounded bg-muted/50 text-sm">
                               <MathText text={optionText} />
                             </div>
                           )}
@@ -789,7 +789,7 @@ const CollapsibleQuestionCard: React.FC<CollapsibleQuestionCardProps> = memo(({
                               <img
                                 src={diagramUrl}
                                 alt={`Option ${optionLabel} diagram`}
-                                className="max-w-full h-auto max-h-40 rounded border border-gray-200 cursor-pointer hover:opacity-80 transition-opacity"
+                                className="max-w-full h-auto max-h-40 rounded border border-border cursor-pointer hover:opacity-80 transition-opacity"
                                 onClick={(e) => {
                                   e.stopPropagation()
                                   setModalImage({

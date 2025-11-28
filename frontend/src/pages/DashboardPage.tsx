@@ -40,6 +40,13 @@ const DashboardPage = () => {
     { enabled: isStudent }
   )
 
+  // Fetch paused exams
+  const { data: pausedExamsData } = useQuery(
+    ['results', 'paused'],
+    () => resultAPI.getUserResults({ status: 'paused', limit: 3, sortBy: 'updatedAt', sortOrder: 'desc' }),
+    { enabled: !!user }
+  )
+
   // Fetch user's created exams (for teachers)
   const { data: myExamsData, isLoading: myExamsLoading } = useQuery(
     ['exams', 'mine'],
@@ -120,6 +127,7 @@ const DashboardPage = () => {
         <div className="absolute bottom-0 left-0 -mb-20 -ml-20 h-64 w-64 rounded-full bg-black/10 blur-3xl" />
       </motion.div>
 
+
       {/* Stats Cards */}
       <motion.div variants={item} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {isStudent && (
@@ -196,6 +204,45 @@ const DashboardPage = () => {
           </>
         )}
       </motion.div>
+
+            {/* Paused Exams Section */}
+      {pausedExamsData?.data.results && pausedExamsData.data.results.length > 0 && (
+        <motion.div variants={item} className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-bold flex items-center gap-2">
+              <Clock className="h-6 w-6 text-amber-500" />
+              Paused Exams
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {pausedExamsData.data.results.map((result: any) => (
+              <Card key={result.id} className="hover:shadow-md transition-all border-l-4 border-l-amber-500">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg line-clamp-1">{result.exam?.title || 'Unknown Exam'}</CardTitle>
+                  <CardDescription>
+                    Paused {formatRelativeTime(result.updatedAt)}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex justify-between text-sm text-muted-foreground">
+                      <span>Progress</span>
+                      <span>{result.answers?.length || 0} answered</span>
+                    </div>
+                    <Button 
+                      className="w-full bg-amber-600 hover:bg-amber-700 text-white"
+                      onClick={() => result.exam?.id && navigate(`/exams/${result.exam.id}/take`)}
+                      disabled={!result.exam}
+                    >
+                      Resume Exam
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </motion.div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Recent Exams / Main Content */}
